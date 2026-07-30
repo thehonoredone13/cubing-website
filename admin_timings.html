@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Save Timings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12172B;
+    --paper:#F6F4EF;
+    --paper-dim:#EAE7DD;
+    --cube-blue:#1758C4;
+    --line:#D9D5C8;
+    --text-dim:#6B7280;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:30px 20px;}
+  .wrap{max-width:500px;margin:0 auto;}
+  header{margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:24px;}
+  .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .back-link:hover{color:var(--ink);}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;}
+  .form-group{margin-bottom:14px;}
+  .form-group label{display:block;font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text-dim);margin-bottom:4px;}
+  .form-group input, .form-group select{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:'Inter',sans-serif;
+  }
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+
+  .btn-submit{
+    background:var(--cube-blue);color:#fff;width:100%;padding:12px;font-size:14px;
+    border-radius:8px;border:none;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;
+  }
+  .btn-submit:hover{opacity:0.9;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Submit Solves &amp; Timing</h1>
+    <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
+  </header>
+
+  <div class="card">
+    <form id="timingForm" onsubmit="submitTimings(event)">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Event</label>
+          <select id="eventSelect" onchange="updateRoundOptions()">
+            <option value="3x3">3x3</option>
+            <option value="2x2">2x2</option>
+            <option value="Pyraminx">Pyraminx</option>
+            <option value="4x4">4x4</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Round</label>
+          <select id="roundSelect">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Competitor ID</label>
+        <input type="text" id="compId" placeholder="e.g. C1" required>
+      </div>
+
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="compName" placeholder="Full Name" required>
+      </div>
+
+      <div class="form-group">
+        <label>Grade</label>
+        <input type="text" id="compGrade" placeholder="e.g. Grade 7">
+      </div>
+
+      <div class="form-group">
+        <label>Solves (in seconds, e.g. 14.52)</label>
+        <div class="form-row-3">
+          <input type="number" step="0.01" id="s1" placeholder="S1">
+          <input type="number" step="0.01" id="s2" placeholder="S2">
+          <input type="number" step="0.01" id="s3" placeholder="S3">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Round Status</label>
+        <select id="statusSelect">
+          <option value="Complete">Complete (Finished)</option>
+          <option value="Live">Live (Ongoing)</option>
+          <option value="Upcoming">Upcoming</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn-submit" id="saveBtn">Save Timings</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  // DEPLOYED URL FOR YOUR RESULTS SPREADSHEET APPS SCRIPT
+  const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec "; // UPDATE THIS TO YOUR RESULTS SCRIPT URL
+
+  const EVENT_ROUNDS = {
+    "3x3": ["First Round", "Second Round", "Final"],
+    "2x2": ["First Round", "Final"],
+    "Pyraminx": ["First Round", "Final"],
+    "4x4": ["Final"]
+  };
+
+  function updateRoundOptions() {
+    const eventSel = document.getElementById("eventSelect").value;
+    const roundSel = document.getElementById("roundSelect");
+    const rounds = EVENT_ROUNDS[eventSel] || ["Final"];
+
+    roundSel.innerHTML = rounds.map(r => `<option value="${r}">${r}</option>`).join("");
+  }
+
+  function submitTimings(e) {
+    e.preventDefault();
+    const btn = document.getElementById("saveBtn");
+    btn.disabled = true;
+    btn.innerText = "Saving...";
+
+    const s1 = parseFloat(document.getElementById("s1").value) || 0;
+    const s2 = parseFloat(document.getElementById("s2").value) || 0;
+    const s3 = parseFloat(document.getElementById("s3").value) || 0;
+
+    const solves = [s1, s2, s3].filter(s => s > 0);
+    const best = solves.length > 0 ? Math.min(...solves).toFixed(2) : "-";
+    const avg = solves.length > 0 ? (solves.reduce((a, b) => a + b, 0) / solves.length).toFixed(2) : "-";
+
+    const payload = {
+      action: "submitResult",
+      Event: document.getElementById("eventSelect").value,
+      Round: document.getElementById("roundSelect").value,
+      Rank: "",
+      CompetitorID: document.getElementById("compId").value,
+      Name: document.getElementById("compName").value,
+      Grade: document.getElementById("compGrade").value,
+      Solve1: s1 ? s1.toFixed(2) : "-",
+      Solve2: s2 ? s2.toFixed(2) : "-",
+      Solve3: s3 ? s3.toFixed(2) : "-",
+      Average: avg,
+      Best: best,
+      Status: document.getElementById("statusSelect").value
+    };
+
+    fetch(RESULTS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.innerText = "Save Timings";
+      if (res.success || res.status === "success") {
+        alert("Timing saved successfully!");
+        document.getElementById("timingForm").reset();
+        updateRoundOptions();
+      } else {
+        alert("Error saving timings: " + (res.error || res.message || "Unknown error"));
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerText = "Save Timings";
+      console.error("Error submitting timing:", err);
+      alert("Failed to submit timings to backend.");
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", updateRoundOptions);
+</script>
+</body>
+</html>

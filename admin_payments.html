@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Mark as Paid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12172B;
+    --paper:#F6F4EF;
+    --paper-dim:#EAE7DD;
+    --cube-red:#E6402A;
+    --cube-green:#1E8E5A;
+    --line:#D9D5C8;
+    --text-dim:#6B7280;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:30px 20px;}
+  .wrap{max-width:900px;margin:0 auto;}
+  header{margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:26px;}
+  .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .back-link:hover{color:var(--ink);}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;color:var(--text-dim);padding:10px;border-bottom:1px solid var(--line);background:var(--paper-dim);text-align:left;}
+  td{padding:12px 10px;border-bottom:1px solid var(--line);}
+  
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;}
+  .badge-paid{background:rgba(30,142,90,0.15);color:var(--cube-green);}
+  .badge-pending{background:rgba(230,64,42,0.15);color:var(--cube-red);}
+  
+  .btn{
+    padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;transition:opacity .15s ease;
+  }
+  .btn:hover{opacity:0.85;}
+  .btn-pay{background:var(--cube-green);color:#fff;}
+  .btn-unpay{background:var(--text-dim);color:#fff;}
+  .btn-refresh{background:var(--ink);color:#fff;padding:8px 16px;border-radius:999px;margin-bottom:16px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Registrations &amp; Payment Status</h1>
+    </div>
+    <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
+  </header>
+
+  <button class="btn btn-refresh" onclick="loadRegistrations()">↻ Refresh Registrations</button>
+  
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Events</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="regTableBody">
+        <tr>
+          <td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // UPDATE THIS TO YOUR REGISTRATIONS APPS SCRIPT DEPLOYED URL
+  const REGISTRATION_API_URL = "https://script.google.com/macros/s/AKfycbyBZ_xge06xvF4sdKAndQKwtQlAhZjvHjl4HgF_1iGvCYzXD4uruJpk01D95D-ASHW7/exec";
+
+  function loadRegistrations() {
+    const tbody = document.getElementById("regTableBody");
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
+
+    fetch(`${REGISTRATION_API_URL}?action=registrations`)
+      .then(res => res.json())
+      .then(data => {
+        const records = Array.isArray(data) ? data : (data.data || []);
+        if (records.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No registrations found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = records.map(row => {
+          const status = row.PaymentStatus || row.FeeStatus || "Pending";
+          const isPaid = String(status).toLowerCase() === "paid";
+          const badgeClass = isPaid ? "badge-paid" : "badge-pending";
+
+          return `
+            <tr>
+              <td><b>${row.ID || '—'}</b></td>
+              <td>${row.Name || '—'}</td>
+              <td>${row.Events || '—'}</td>
+              <td><span class="badge ${badgeClass}">${status}</span></td>
+              <td>
+                ${isPaid 
+                  ? `<button class="btn btn-unpay" onclick="togglePayment('${row.ID}', 'Pending')">Mark Pending</button>`
+                  : `<button class="btn btn-pay" onclick="togglePayment('${row.ID}', 'Paid')">Mark Paid</button>`
+                }
+              </td>
+            </tr>
+          `;
+        }).join("");
+      })
+      .catch(err => {
+        console.error("Error loading registrations:", err);
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify API_URL.</td></tr>`;
+      });
+  }
+
+  function togglePayment(id, targetStatus) {
+    if (!confirm(`Set payment status for ${id} to ${targetStatus}?`)) return;
+
+    fetch(REGISTRATION_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "updateRegistration",
+        id: id,
+        PaymentStatus: targetStatus
+      })
+    })
+    .then(res => res.json())
+    .then(res => {
+      if (res.success || res.status === "success") {
+        loadRegistrations();
+      } else {
+        alert("Error: " + (res.error || res.message || "Failed to update payment status"));
+      }
+    })
+    .catch(err => {
+      console.error("Error:", err);
+      alert("Failed to connect to backend server.");
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", loadRegistrations);
+</script>
+</body>
+</html>
