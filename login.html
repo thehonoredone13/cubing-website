@@ -156,7 +156,7 @@
 </div>
 
 <script>
-  function handleLogin(e) {
+ function handleLogin(e) {
     e.preventDefault();
     const userVal = document.getElementById('username').value;
     const passVal = document.getElementById('password').value;
@@ -166,24 +166,18 @@
       errDiv.style.display = 'none';
       // Redirect to admin page upon successful authentication
       window.location.href = 'admin_home.html';
-    } else {
-      errDiv.style.display = 'block';
-    }
-
-     if (userVal === 'Kush M' && passVal === 'kush123') {
+    } else if (userVal === 'Kush M' && passVal === 'kush123') {
       errDiv.style.display = 'none';
-      // Redirect to admin page upon successful authentication
       window.location.href = 'admin_home.html';
-    } else {
-      errDiv.style.display = 'block';
     }
-
-     if (userVal === 'Vyom Tholapi' && passVal === 'vyom123') {
+    else if (userVal === 'Vyom Tholapi' && passVal === 'vyom123') {
       errDiv.style.display = 'none';
-      // Redirect to admin page upon successful authentication
       window.location.href = 'admin_home.html';
-    } else {
+    }
+    else {
       errDiv.style.display = 'block';
+
+      
     }
   }
 </script>
