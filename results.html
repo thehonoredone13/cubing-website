@@ -216,7 +216,7 @@
     "3x3": ["First Round", "Second Round", "Final"],
     "2x2": ["First Round", "Final"],
     "Pyraminx": ["First Round", "Final"],
-    "4x4": ["Final"]
+    "Megaminx": ["Final"]
   };
 
   let allResultsData = [];
@@ -323,7 +323,7 @@
   // Initial load and auto-refresh every 15 seconds
   document.addEventListener("DOMContentLoaded", () => {
     fetchResults();
-    setInterval(fetchResults, 15000);
+    setInterval(fetchResults, 2000);
   });
 </script>
 </body>
