@@ -162,7 +162,23 @@
     const passVal = document.getElementById('password').value;
     const errDiv = document.getElementById('login-error');
 
-    if (userVal === 'SATWIK M' && passVal === 'SATWIK123') {
+    if (userVal === 'Satwik M' && passVal === 'satwik123') {
+      errDiv.style.display = 'none';
+      // Redirect to admin page upon successful authentication
+      window.location.href = 'admin_home.html';
+    } else {
+      errDiv.style.display = 'block';
+    }
+
+     if (userVal === 'Kush M' && passVal === 'kush123') {
+      errDiv.style.display = 'none';
+      // Redirect to admin page upon successful authentication
+      window.location.href = 'admin_home.html';
+    } else {
+      errDiv.style.display = 'block';
+    }
+
+     if (userVal === 'Vyom Tholapi' && passVal === 'vyom123') {
       errDiv.style.display = 'none';
       // Redirect to admin page upon successful authentication
       window.location.href = 'admin_home.html';
