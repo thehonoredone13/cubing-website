@@ -57,6 +57,7 @@
             <option value="2x2">2x2</option>
             <option value="Pyraminx">Pyraminx</option>
             <option value="4x4">4x4</option>
+            <option value="Megaminx">Megaminx</option>
           </select>
         </div>
         <div class="form-group">
@@ -107,13 +108,14 @@
 
 <script>
   // DEPLOYED URL FOR YOUR RESULTS SPREADSHEET APPS SCRIPT
-  const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec "; // UPDATE THIS TO YOUR RESULTS SCRIPT URL
+  const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec"; // UPDATE THIS TO YOUR RESULTS SCRIPT URL
 
   const EVENT_ROUNDS = {
     "3x3": ["First Round", "Second Round", "Final"],
     "2x2": ["First Round", "Final"],
     "Pyraminx": ["First Round", "Final"],
-    "4x4": ["Final"]
+    "4x4": ["Final"],
+    "Megaminx": ["Final"]
   };
 
   function updateRoundOptions() {
