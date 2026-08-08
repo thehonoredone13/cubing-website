@@ -134,7 +134,7 @@
           <div class="radio-pill" data-grade="8">Grade 8</div>
           <div class="radio-pill" data-grade="9">Grade 9</div>
         </div>
-        <div class="hint">Megaminx is only open to Grades 8 &amp; 9.</div>
+        <div class="hint">Megaminx and 4x4 are only open to Grades 8 &amp; 9.</div>
       </div>
 
       <div class="field">
@@ -149,9 +149,12 @@
           <div class="event-check" data-event="pyraminx" style="--e-color:var(--cube-blue);">
             <span class="event-dot"></span><span class="name">Pyraminx</span><span class="check-icon"></span>
           </div>
-          <div class="event-check" data-event="4x4" style="--e-color:var(--cube-green);">
+          <div class="event-check" data-event="megaminx" style="--e-color:var(--cube-green);">
             <span class="event-dot"></span><span class="name">Megaminx</span><span class="check-icon"></span>
           </div>
+           <div class="event-check" data-event="4x4" style="--e-color:var(--cube-orange);">
+            <span class="event-dot"></span><span class="name">4x4</span><span class="check-icon"></span>
+           </div>
         </div>
       </div>
 
@@ -182,7 +185,7 @@
      Until then, the form will show a friendly message instead of submitting. */
   const API_URL = "https://script.google.com/macros/s/AKfycbyBZ_xge06xvF4sdKAndQKwtQlAhZjvHjl4HgF_1iGvCYzXD4uruJpk01D95D-ASHW7/exec";
 
-  const FEES = { 1: 100, 2: 200, 3: 250, 4: 300 };
+  const FEES = { 1: 100, 2: 200, 3: 250, 4: 300, 5: 350 };
   let selectedGrade = null;
   let selectedEvents = [];
 
@@ -195,11 +198,12 @@
   function updateEventAvailability() {
     eventOptions.forEach(el => {
       const is4x4 = el.dataset.event === '4x4';
-      const locked = is4x4 && !(selectedGrade === '8' || selectedGrade === '9');
+      const ismegaminx = el.dataset.event === 'Megaminx';
+      const locked = (is4x4 || ismegaminx) && !(selectedGrade === '8' || selectedGrade === '9');
       el.classList.toggle('disabled', locked && !!selectedGrade === true && locked);
       if (locked) {
         el.classList.add('disabled');
-        if (selectedEvents.includes('4x4')) {
+        if (selectedEvents.includes('4x4') || selectedEvents.includes('Megaminx')) {
           selectedEvents = selectedEvents.filter(ev => ev !== '4x4');
           el.classList.remove('selected');
         }
