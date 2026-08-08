@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Volunteer Directory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12172B;
+    --paper:#F6F4EF;
+    --paper-dim:#EAE7DD;
+    --cube-red:#E6402A;
+    --cube-green:#1E8E5A;
+    --line:#D9D5C8;
+    --text-dim:#6B7280;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:30px 20px;}
+  .wrap{max-width:900px;margin:0 auto;}
+  header{margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:26px;}
+  .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .back-link:hover{color:var(--ink);}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;color:var(--text-dim);padding:10px;border-bottom:1px solid var(--line);background:var(--paper-dim);text-align:left;}
+  td{padding:12px 10px;border-bottom:1px solid var(--line);}
+  
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;}
+  .badge-role{background:rgba(30,142,90,0.15);color:var(--cube-green);}
+  
+  .btn{
+    padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;transition:opacity .15s ease;
+  }
+  .btn:hover{opacity:0.85;}
+  .btn-refresh{background:var(--ink);color:#fff;padding:8px 16px;border-radius:999px;margin-bottom:16px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Volunteer Registrations</h1>
+    </div>
+    <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
+  </header>
+
+  <button class="btn btn-refresh" onclick="loadVolunteers()">↻ Refresh Volunteers</button>
+  
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Full Name</th>
+          <th>Grade Level</th>
+          <th>Role</th>
+          <th>Scramble Events</th>
+        </tr>
+      </thead>
+      <tbody id="volunteerTableBody">
+        <tr>
+          <td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // REPLACE THIS WITH YOUR DEPLOYED APPS SCRIPT WEB APP URL
+  const VOLUNTEER_API_URL = "https://script.google.com/macros/s/AKfycbzcYqKBeoI-SlCik2nVTUWZpZAo1VDzKWn495hkntC615xHwuQNv4g8x3B2TbcjGIOj9A/exec";
+
+  function loadVolunteers() {
+    const tbody = document.getElementById("volunteerTableBody");
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
+
+    fetch(VOLUNTEER_API_URL)
+      .then(res => res.json())
+      .then(records => {
+        if (!Array.isArray(records) || records.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">No volunteers found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = records.map(row => {
+          return `
+            <tr>
+              <td><b>${row.fullName}</b></td>
+              <td>${row.gradeLevel}</td>
+              <td><span class="badge badge-role">${row.role}</span></td>
+              <td>${row.scrambleEvents}</td>
+            </tr>
+          `;
+        }).join("");
+      })
+      .catch(err => {
+        console.error("Error loading volunteers:", err);
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify VOLUNTEER_API_URL.</td></tr>`;
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", loadVolunteers);
+</script>
+</body>
+</html>
