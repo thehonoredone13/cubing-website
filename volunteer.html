@@ -42,10 +42,10 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px;}
   .field{margin-bottom:22px;}
   .field label{display:block;font-weight:600;font-size:14px;margin-bottom:8px;}
-  .field input[type=text]{
+  .field input[type=text], .field input[type=tel]{
     width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:14.5px;font-family:'Inter',sans-serif;outline:none;
   }
-  .field input[type=text]:focus{border-color:var(--ink);}
+  .field input[type=text]:focus, .field input[type=tel]:focus{border-color:var(--ink);}
 
   /* Radio Pills Styling */
   .grade-options, .role-options{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
@@ -115,7 +115,8 @@
 <nav>
   <div class="nav-inner">
     <a href="#" class="logo">
-   <img src="FKS Logo.png" class="logo-mark">   <span>FKS Cubing Open 2026</span>
+      <img src="FKS Logo.png" class="logo-mark">
+      <span>FKS Cubing Open 2026</span>
     </a>
     <div class="nav-links">
       <a href="registration.html">Register</a>
@@ -145,6 +146,13 @@
         <div class="field">
           <label for="fullName">Full Name</label>
           <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" required>
+        </div>
+
+        <!-- Mobile Number Field -->
+        <div class="field">
+          <label for="mobileNumber">Mobile Number</label>
+          <input type="tel" id="mobileNumber" name="mobileNumber" placeholder="e.g., 9876543210" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" required>
+          <div class="hint">Used for event WhatsApp updates &amp; coordination on competition day.</div>
         </div>
 
         <!-- Grade Options (Radio Pills) -->
@@ -245,15 +253,13 @@
 <footer>
   <div class="footer-inner">
     <div class="logo">
-      <img class="logo-mark" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAYUAAACcCAYAAACQjbevAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAh1QAAIdUBBJy0nQAAfYJJREFUeF7tfQd4VFXa/7Zvd/+7+21v+umqqyTTUmbm3ju9t/TMZCa9954QQkIgCQOEECAkBBJK6BB6BxFBcCNSBERhNZZFERu6KoqodJL5P+/NnOHmZBISQAW8v+c5z5Rz7rnnnnvv+57z1h/9iAWLewwul+sn6PPIkSN/jwwPL7dZrUujoqKOWczmL1UKpYsiSJeEpFwalfp6WFDauzabba81zDq7fuJEncvl+inqgwULFixY3MNwuVw/drlcP7NGRFSEhoS+QIjFl0gxQTMBQiSGzx6xUHSdEImvUQR5lRCJr5NiohvqxUKRC77rtbqPwkPDVzU1NQW4+/sxfh4WLFiwYHGXY+7cuarQ0NBFGpX6EyD+JEn2hISEdMXFxbXrNZqsibW1qmXLlvF37Nx5SGdn598PPHPgwY0bN45YsGBBYHp6epjZbB4Z64h9SkJJviJJ0kWS5NXgoOAdRUVF8cBo8POxYMGCBYu7ENu3b+eEhYQtIAnyKuwKxELRpZTE5DV5eXl6vO1Q0NnZ+RubzVZmMVuOk0IC+uzRa/TPrlq1ioO3ZcGCBQsWdwFApHPmzJlfmc3mvQRBXAbCTRHkhczMzPBjx479Cm9/K4Bz5Gfny80m88sgXqIo6rLNZlvN6htYsGDB4i5DRkZGnoSizgGxhtV8SkpK0e7du3+Nt7tdAGPo7Oz8ZXZmZolYKAI9hEur0R5dvXr131jmwIIFCxbfM5YsWULqdbr9pJi4ThHk5dTU1MqOjo4H8HbfBsaOHcuzWq27QESlVqm7WhobSbwNCxYsWLD4juB0OmMklOQcmJKajcZT9fX1PLzNt41jx479j9Vq3UgQxHWFXHF+Yu1EHd6GBQsWLFh8y4iMzJwlChTSu4PkhIS8rq6un+NtvkvY7fYpFEm6ZJTkyphRo4R4PQsWLFiw+JZgtVo3ECJxN+gOysvLtXj99wFwcIuPjp4hERMumUR6rrGu7jG8DQsWLFiwuMOIDA/fDA5lGpX6vw0NDf/E679PrF+//qd5eXnjQPms1+lf7erq+g3ehgULFixY3CHYbLZlwBC0as2ZefPmPYrX3w0A6ySj3nAQ9ByJcYmb8HoWLFiwYHGbANFMRmpGHu00ptN/sL6t7a5egYPyWa/XvwHjHT1q9ESXy/U/cA14OxYsWLBgcQvo6OgQUQR5EXYJTqdTitffjZgzZ044Bd7PIvHFBfPnFxbkFSw/fPjwb/F2LFiwYMFiGDh58uRv5VL5p+ALUJBb4MDr72ZkpqVNJ3sD7/XA+EkxcbG4uPgveDsWLFiwYDFERISFVYHiNiQk5BW87l6AXq9/MTEx8Sm9SvcqBOWrq6sz421YsGDBgsUQ4HQ6f6KWqz6lSOoqRC7F6+8VgPJZKpE+D8yturpajdezYMGCBYshINgSPBFyGsTHxq/G6+41qGTKLmFA4NWMjIwH8ToWLFiwYDEEBFksb1EEeWnHxh13lT/CrUAmkV4gxcTnO3bs+AObpIcFCxYsholt27Y9RgiJq1GRUc/eD0RUq9G+RhFkt8FgOL1o0aL/xetZsGDBgsUgyEjNiAOLHZPJVHGvMwV3jucfGzTaI6Bslkgk5yD8Nt6OBQsWLFh8S3j33Xf/B/c6yI3I5f1CAAAAAElFTkSuQmCC" alt="FKS Cubing Open 2026">
+      <img class="logo-mark" src="FKS Logo.png" alt="FKS Cubing Open 2026">
       <span>FKS Cubing Open 2026</span>
     </div>
-    
   </div>
 </footer>
 
 <script>
-  // Insert your deployed Google Apps Script Web App URL here
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzcYqKBeoI-SlCik2nVTUWZpZAo1VDzKWn495hkntC615xHwuQNv4g8x3B2TbcjGIOj9A/exec';
 
   const gradeInputs = document.querySelectorAll('input[name="grade"]');
@@ -332,7 +338,6 @@
     });
   });
 
-  // Submission handler with Google Sheets API fetch
   document.getElementById('volunteerForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const statusMsg = document.getElementById('statusMsg');
@@ -347,12 +352,10 @@
       }
     }
 
-    // Disable button while processing
     submitBtn.disabled = true;
     submitBtn.innerText = 'Submitting...';
     statusMsg.style.display = 'none';
 
-    // Collect data
     const formData = new FormData(e.target);
 
     fetch(SCRIPT_URL, {
@@ -367,7 +370,6 @@
         statusMsg.style.display = 'block';
         document.getElementById('volunteerForm').reset();
         
-        // Reset custom selected UI states
         document.querySelectorAll('.radio-pill, .event-check').forEach(el => el.classList.remove('selected'));
         scrambleSection.style.display = 'none';
       } else {
