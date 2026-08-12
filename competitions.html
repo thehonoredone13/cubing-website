@@ -35,7 +35,6 @@
   .wrap{max-width:1120px;margin:0 auto;padding:0 28px;width:100%;}
 
   /* ---------- NAV ---------- */
- * ---------- NAV ---------- */
   nav{
     position:sticky;top:0;z-index:50;
     background:rgba(246,244,239,0.9);
@@ -61,9 +60,6 @@
   .btn:hover{transform:translateY(-1px);}
   .btn-solid-red{background:var(--cube-red);color:#fff;}
   .btn-solid-red:hover{box-shadow:0 6px 16px rgba(230,64,42,0.35);}
-  .btn-outline-ink{border:1px solid var(--ink);}
-
-  
 
   /* ---------- PAGE HEADER ---------- */
   .page-header{
@@ -137,7 +133,7 @@
   .sub-content-panel{display:none;}
   .sub-content-panel.active-panel{display:block;}
 
-  /* ---------- EVENTS OFFERED STYLES (MATCHED FROM COMPETITIONS PAGE) ---------- */
+  /* ---------- EVENTS OFFERED STYLES ---------- */
   .card-label{
     font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
     color:var(--text-dim);margin-bottom:14px;
@@ -187,6 +183,133 @@
   }
   .rounds-text{font-size:13.5px;color:#3B4152;line-height:1.5;}
 
+  /* ---------- MULTI-SELECT FILTER BAR ---------- */
+  .filter-panel {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+  }
+  .filter-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .dropdown-btn {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .dropdown-btn:hover { border-color: var(--ink); }
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 6px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    padding: 10px;
+    z-index: 100;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .dropdown-menu.show { display: block; }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+  }
+  .checkbox-item:hover { background: var(--paper-dim); }
+  .checkbox-item input { accent-color: var(--ink); cursor: pointer; }
+
+  .search-input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--ink); }
+
+  /* Active Filter Tags */
+  .active-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--paper-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .tag-chip button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1;
+  }
+  .tag-chip button:hover { color: var(--cube-red); }
+  .clear-all-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--cube-red);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-left: 6px;
+  }
+
   /* ---------- TABLE STYLES ---------- */
   .table-style{
     width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;
@@ -196,6 +319,17 @@
     padding:14px 18px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;
   }
   .table-style th{background:var(--paper-dim);font-family:'Space Grotesk',sans-serif;font-weight:600;}
+  
+  .event-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--paper-dim);
+    border: 1px solid var(--line);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    margin: 2px 2px 2px 0;
+  }
 
   /* ---------- FOOTER ---------- */
   footer{background:var(--ink);color:rgba(246,244,239,0.65);padding:40px 0;font-size:13px;margin-top:auto;}
@@ -227,6 +361,7 @@
     </div>
   </div>
 </nav>
+
 <header class="page-header">
   <div class="wrap">
     <div class="eyebrow"><span class="eyebrow-dot"></span> Intra-School Event</div>
@@ -240,13 +375,11 @@
   <!-- VIEW 1: CENTERED COMPETITION LIST -->
   <section id="home-view" class="view-section active-view">
     <div class="center-grid">
-      
       <div class="comp-card" onclick="openCompetition('fks-2026')">
         <h3>FKS Cubing Open 2026</h3>
         <div class="date">October 3, 2026</div>
         <p>The annual intra-school speedcubing event featuring 3x3, 2x2, 4x4, Pyraminx, and Megaminx competitions.</p>
       </div>
-
     </div>
   </section>
 
@@ -264,7 +397,7 @@
       <button class="sub-tab" onclick="switchSubPanel('competitors-panel', this)">Registered Competitors</button>
     </div>
 
-    <!-- PANEL A: EVENTS OFFERED (Full Content from Competitions Page) -->
+    <!-- PANEL A: EVENTS OFFERED -->
     <div id="events-panel" class="sub-content-panel active-panel">
       <div class="card-label">Events Offered</div>
       <div class="events-grid">
@@ -379,14 +512,86 @@
       </div>
     </div>
 
-    <!-- PANEL B: REGISTERED COMPETITORS (APPS SCRIPT API) -->
+    <!-- PANEL B: REGISTERED COMPETITORS -->
     <div id="competitors-panel" class="sub-content-panel">
+      
+      <!-- Multi-Select Filters Bar -->
+      <div class="filter-panel">
+        <div class="filter-row">
+          
+          <!-- Filter 1: Age Group / Grade Multi-select -->
+          <div class="filter-group">
+            <span class="filter-label">Filter Age Group / Grade</span>
+            <button class="dropdown-btn" onclick="toggleDropdown('ageDropdown')">
+              <span id="ageDropdownText">All Age Groups</span> ▾
+            </button>
+            <div id="ageDropdown" class="dropdown-menu">
+              <label class="checkbox-item">
+                <input type="checkbox" value="Grades 6 & 7" onchange="handleFilterChange()"> Grades 6 & 7
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Grades 8 & 9" onchange="handleFilterChange()"> Grades 8 & 9
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Grade 6" onchange="handleFilterChange()"> Grade 6
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Grade 7" onchange="handleFilterChange()"> Grade 7
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Grade 8" onchange="handleFilterChange()"> Grade 8
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Grade 9" onchange="handleFilterChange()"> Grade 9
+              </label>
+            </div>
+          </div>
+
+          <!-- Filter 2: Registered Events Multi-select -->
+          <div class="filter-group">
+            <span class="filter-label">Filter Registered Events</span>
+            <button class="dropdown-btn" onclick="toggleDropdown('eventDropdown')">
+              <span id="eventDropdownText">All Events / Cubes</span> ▾
+            </button>
+            <div id="eventDropdown" class="dropdown-menu">
+              <label class="checkbox-item">
+                <input type="checkbox" value="3x3" onchange="handleFilterChange()"> 3×3×3 Cube
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="2x2" onchange="handleFilterChange()"> 2×2×2 Cube
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Pyraminx" onchange="handleFilterChange()"> Pyraminx
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="4x4" onchange="handleFilterChange()"> 4×4×4 Cube
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="Megaminx" onchange="handleFilterChange()"> Megaminx
+              </label>
+            </div>
+          </div>
+
+          <!-- Search Input -->
+          <div class="filter-group">
+            <span class="filter-label">Search Competitor</span>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by name or ID..." oninput="handleFilterChange()">
+          </div>
+
+        </div>
+
+        <!-- Active Filter Tags Container -->
+        <div id="activeTagsContainer" class="active-tags" style="display: none;"></div>
+      </div>
+
       <div style="margin-bottom: 16px; font-family:'IBM Plex Mono', monospace; font-size:14px;" id="competitor-count-label">Loading registrations...</div>
+      
       <table class="table-style">
         <thead>
           <tr>
             <th>Comp ID</th>
             <th>Name</th>
+            <th>Age Group / Grade</th>
             <th>Registered Events</th>
           </tr>
         </thead>
@@ -411,13 +616,14 @@
 </footer>
 
 <script>
-  // Paste your Google Apps Script Web App Deployment URL here
   const WEB_APP_API_URL = 'https://script.google.com/macros/s/AKfycbzDnOlNpI72X25rFl4D2rywCfv97MtvXX_Yzch2Yq7-yV4bjzypxy4u8OJOpS63h2Ll/exec';
 
   const competitionDetails = {
     title: 'FKS Cubing Open 2026',
     subtitle: 'October 3, 2026 • Intra-School Cubing Event'
   };
+
+  let allCompetitors = [];
 
   function showView(viewId) {
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active-view'));
@@ -433,9 +639,7 @@
     document.getElementById('page-title').innerText = competitionDetails.title;
     document.getElementById('page-subtitle').innerText = competitionDetails.subtitle;
 
-    // Fetch competitors from Google Apps Script Web App API
     fetchRegisteredCompetitors();
-
     showView('comp-detail-view');
   }
 
@@ -447,40 +651,159 @@
 
     if (!WEB_APP_API_URL || WEB_APP_API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
       label.innerText = "API URL is missing or not configured.";
-      compTable.innerHTML = `<tr><td colspan="3" style="text-align:center; color: var(--cube-red); padding: 24px;">Please update WEB_APP_API_URL in the script with your Google Apps Script URL.</td></tr>`;
+      compTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--cube-red); padding: 24px;">Please update WEB_APP_API_URL in the script.</td></tr>`;
       return;
     }
 
     fetch(WEB_APP_API_URL)
       .then(response => response.json())
       .then(data => {
-        renderRegistrations(data);
+        allCompetitors = Array.isArray(data) ? data : (data.data || []);
+        handleFilterChange();
       })
       .catch(error => {
         console.error('Error fetching competitors:', error);
         label.innerText = "Failed to load registrations.";
-        compTable.innerHTML = `<tr><td colspan="3" style="text-align:center; color: var(--cube-red); padding: 24px;">Error fetching competitor data. Check API configuration.</td></tr>`;
+        compTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--cube-red); padding: 24px;">Error fetching competitor data. Check API configuration.</td></tr>`;
       });
+  }
+
+  function toggleDropdown(id) {
+    const dropdown = document.getElementById(id);
+    const isOpen = dropdown.classList.contains('show');
+    closeAllDropdowns();
+    if (!isOpen) dropdown.classList.add('show');
+  }
+
+  function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.remove('show'));
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.filter-group')) closeAllDropdowns();
+  });
+
+  function getSelectedCheckboxes(dropdownId) {
+    const checkboxes = document.querySelectorAll(`#${dropdownId} input[type="checkbox"]:checked`);
+    return Array.from(checkboxes).map(cb => cb.value);
+  }
+
+  function handleFilterChange() {
+    const selectedAges = getSelectedCheckboxes('ageDropdown');
+    const selectedEvents = getSelectedCheckboxes('eventDropdown');
+    const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+
+    // Update Dropdown Trigger Texts
+    document.getElementById('ageDropdownText').innerText = selectedAges.length 
+      ? `${selectedAges.length} Selected` 
+      : 'All Age Groups';
+      
+    document.getElementById('eventDropdownText').innerText = selectedEvents.length 
+      ? `${selectedEvents.length} Selected` 
+      : 'All Events / Cubes';
+
+    // Render active tag chips
+    renderActiveTags(selectedAges, selectedEvents);
+
+    // Filter Logic
+    const filtered = allCompetitors.filter(c => {
+      const name = String(c.name || c.fullName || '').toLowerCase();
+      const compId = String(c.compId || c.id || '').toLowerCase();
+      const ageGroup = String(c.ageGroup || c.grade || c.gradeLevel || '');
+      const events = String(c.events || c.scrambleEvents || '');
+
+      // 1. Search Query Match
+      const matchesSearch = !searchQuery || name.includes(searchQuery) || compId.includes(searchQuery);
+
+      // 2. Age Group Multi-select Match
+      let matchesAge = true;
+      if (selectedAges.length > 0) {
+        matchesAge = selectedAges.some(selected => {
+          if (selected === "Grades 6 & 7") return ageGroup.includes("6") || ageGroup.includes("7");
+          if (selected === "Grades 8 & 9") return ageGroup.includes("8") || ageGroup.includes("9");
+          return ageGroup.toLowerCase().includes(selected.toLowerCase());
+        });
+      }
+
+      // 3. Registered Events Multi-select Match
+      let matchesEvent = true;
+      if (selectedEvents.length > 0) {
+        matchesEvent = selectedEvents.some(evt => events.toLowerCase().includes(evt.toLowerCase()));
+      }
+
+      return matchesSearch && matchesAge && matchesEvent;
+    });
+
+    renderRegistrations(filtered);
+  }
+
+  function renderActiveTags(selectedAges, selectedEvents) {
+    const container = document.getElementById('activeTagsContainer');
+    let tagsHTML = '';
+
+    selectedAges.forEach(val => {
+      tagsHTML += `<span class="tag-chip">${val} <button onclick="uncheckFilter('ageDropdown', '${val}')">×</button></span>`;
+    });
+
+    selectedEvents.forEach(val => {
+      tagsHTML += `<span class="tag-chip">${val} <button onclick="uncheckFilter('eventDropdown', '${val}')">×</button></span>`;
+    });
+
+    if (selectedAges.length > 0 || selectedEvents.length > 0) {
+      tagsHTML += `<button class="clear-all-btn" onclick="clearAllFilters()">Clear All</button>`;
+      container.innerHTML = tagsHTML;
+      container.style.display = 'flex';
+    } else {
+      container.innerHTML = '';
+      container.style.display = 'none';
+    }
+  }
+
+  function uncheckFilter(dropdownId, value) {
+    const cb = document.querySelector(`#${dropdownId} input[value="${value}"]`);
+    if (cb) cb.checked = false;
+    handleFilterChange();
+  }
+
+  function clearAllFilters() {
+    document.querySelectorAll('.dropdown-menu input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.getElementById('searchInput').value = '';
+    handleFilterChange();
   }
 
   function renderRegistrations(data) {
     const compTable = document.getElementById('competitors-table-body');
     const label = document.getElementById('competitor-count-label');
 
-    label.innerText = `Total Registered Participants: ${data.length}`;
+    label.innerText = `Showing ${data.length} of ${allCompetitors.length} Total Registered Participants`;
 
     if (!data || data.length === 0) {
-      compTable.innerHTML = `<tr><td colspan="3" style="text-align:center; color: var(--text-dim); padding: 24px;">No registrations loaded yet.</td></tr>`;
+      compTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--text-dim); padding: 24px;">No matching competitors found.</td></tr>`;
       return;
     }
 
-    compTable.innerHTML = data.map(c => `
-      <tr>
-        <td><strong>${c.compId || c.id || '-'}</strong></td>
-        <td>${c.name || '-'}</td>
-        <td>${c.events || '-'}</td>
-      </tr>
-    `).join('');
+    compTable.innerHTML = data.map(c => {
+      const compId = c.compId || c.id || '—';
+      const name = c.name || c.fullName || '—';
+      const ageGroup = c.ageGroup || c.grade || c.gradeLevel || '—';
+      const eventsRaw = c.events || c.scrambleEvents || '—';
+
+      let formattedEvents = eventsRaw;
+      if (eventsRaw !== '—') {
+        formattedEvents = eventsRaw.split(',')
+          .map(e => `<span class="event-badge">${e.trim()}</span>`)
+          .join(" ");
+      }
+
+      return `
+        <tr>
+          <td><strong>${compId}</strong></td>
+          <td>${name}</td>
+          <td>${ageGroup}</td>
+          <td>${formattedEvents}</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function switchSubPanel(panelId, btnElement) {
