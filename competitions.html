@@ -83,7 +83,6 @@
   .view-section{display:none;padding:44px 0 60px;}
   .view-section.active-view{display:block;}
 
-  /* Centered Layout for Competition List */
   .center-grid{
     display:flex;
     justify-content:center;
@@ -101,7 +100,6 @@
   .comp-card .date{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--cube-orange);margin-bottom:12px;font-weight:600;}
   .comp-card p{font-size:14.5px;color:var(--text-dim);line-height:1.5;}
 
-  /* Header & Action bar inside Competition Details */
   .comp-actions-bar{
     display:flex;
     justify-content:space-between;
@@ -118,7 +116,6 @@
   }
   .back-btn:hover{color:var(--ink);}
 
-  /* Menu Tabs Inside Detail View */
   .sub-menu-tabs{
     display:flex;gap:12px;margin-bottom:32px;border-bottom:2px solid var(--line);padding-bottom:12px;
   }
@@ -271,7 +268,6 @@
   }
   .search-input:focus { border-color: var(--ink); }
 
-  /* Active Filter Tags */
   .active-tags {
     display: flex;
     flex-wrap: wrap;
@@ -372,7 +368,6 @@
 
 <main class="wrap">
 
-  <!-- VIEW 1: CENTERED COMPETITION LIST -->
   <section id="home-view" class="view-section active-view">
     <div class="center-grid">
       <div class="comp-card" onclick="openCompetition('fks-2026')">
@@ -383,7 +378,6 @@
     </div>
   </section>
 
-  <!-- VIEW 2: INDIVIDUAL COMPETITION DASHBOARD -->
   <section id="comp-detail-view" class="view-section">
     
     <div class="comp-actions-bar">
@@ -391,7 +385,6 @@
       <a href="results.html" class="btn btn-solid-red">View Results &rarr;</a>
     </div>
 
-    <!-- Sub-menu navigation inside chosen competition -->
     <div class="sub-menu-tabs">
       <button class="sub-tab active-tab" onclick="switchSubPanel('events-panel', this)">Events Offered</button>
       <button class="sub-tab" onclick="switchSubPanel('competitors-panel', this)">Registered Competitors</button>
@@ -515,11 +508,9 @@
     <!-- PANEL B: REGISTERED COMPETITORS -->
     <div id="competitors-panel" class="sub-content-panel">
       
-      <!-- Multi-Select Filters Bar -->
       <div class="filter-panel">
         <div class="filter-row">
           
-          <!-- Filter 1: Age Group / Grade Multi-select -->
           <div class="filter-group">
             <span class="filter-label">Filter Age Group / Grade</span>
             <button class="dropdown-btn" onclick="toggleDropdown('ageDropdown')">
@@ -547,7 +538,6 @@
             </div>
           </div>
 
-          <!-- Filter 2: Registered Events Multi-select -->
           <div class="filter-group">
             <span class="filter-label">Filter Registered Events</span>
             <button class="dropdown-btn" onclick="toggleDropdown('eventDropdown')">
@@ -572,7 +562,6 @@
             </div>
           </div>
 
-          <!-- Search Input -->
           <div class="filter-group">
             <span class="filter-label">Search Competitor</span>
             <input type="text" id="searchInput" class="search-input" placeholder="Search by name or ID..." oninput="handleFilterChange()">
@@ -580,7 +569,6 @@
 
         </div>
 
-        <!-- Active Filter Tags Container -->
         <div id="activeTagsContainer" class="active-tags" style="display: none;"></div>
       </div>
 
@@ -693,7 +681,6 @@
     const selectedEvents = getSelectedCheckboxes('eventDropdown');
     const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
 
-    // Update Dropdown Trigger Texts
     document.getElementById('ageDropdownText').innerText = selectedAges.length 
       ? `${selectedAges.length} Selected` 
       : 'All Age Groups';
@@ -702,20 +689,23 @@
       ? `${selectedEvents.length} Selected` 
       : 'All Events / Cubes';
 
-    // Render active tag chips
     renderActiveTags(selectedAges, selectedEvents);
 
     // Filter Logic
     const filtered = allCompetitors.filter(c => {
+      // STRICT CONDITION: Only show competitors whose payment status is PAID or YES
+      const paymentStatus = String(c.paymentStatus || c.status || c.payment || '').toUpperCase().trim();
+      const isPaid = paymentStatus === 'PAID' || paymentStatus === 'YES';
+
+      if (!isPaid) return false;
+
       const name = String(c.name || c.fullName || '').toLowerCase();
       const compId = String(c.compId || c.id || '').toLowerCase();
       const ageGroup = String(c.ageGroup || c.grade || c.gradeLevel || '');
       const events = String(c.events || c.scrambleEvents || '');
 
-      // 1. Search Query Match
       const matchesSearch = !searchQuery || name.includes(searchQuery) || compId.includes(searchQuery);
 
-      // 2. Age Group Multi-select Match
       let matchesAge = true;
       if (selectedAges.length > 0) {
         matchesAge = selectedAges.some(selected => {
@@ -725,7 +715,6 @@
         });
       }
 
-      // 3. Registered Events Multi-select Match
       let matchesEvent = true;
       if (selectedEvents.length > 0) {
         matchesEvent = selectedEvents.some(evt => events.toLowerCase().includes(evt.toLowerCase()));
@@ -775,10 +764,10 @@
     const compTable = document.getElementById('competitors-table-body');
     const label = document.getElementById('competitor-count-label');
 
-    label.innerText = `Showing ${data.length} of ${allCompetitors.length} Total Registered Participants`;
+    label.innerText = `Showing ${data.length} Confirmed Competitor${data.length === 1 ? '' : 's'}`;
 
     if (!data || data.length === 0) {
-      compTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--text-dim); padding: 24px;">No matching competitors found.</td></tr>`;
+      compTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--text-dim); padding: 24px;">No paid competitors found matching your criteria.</td></tr>`;
       return;
     }
 
