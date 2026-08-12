@@ -18,13 +18,13 @@
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:30px 20px;}
-  .wrap{max-width:1050px;margin:0 auto;}
+  .wrap{max-width:1100px;margin:0 auto;}
   header{margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;}
   h1{font-family:'Space Grotesk',sans-serif;font-size:26px;}
   .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
   .back-link:hover{color:var(--ink);}
 
-  /* ---------- FILTER & CONTROLS BAR ---------- */
+  /* Filter & Controls Bar */
   .filter-card {
     background: #fff;
     border: 1px solid var(--line);
@@ -69,7 +69,7 @@
     margin-bottom: 16px;
   }
 
-  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;overflow:hidden;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;overflow-x:auto;}
   table{width:100%;border-collapse:collapse;font-size:13.5px;}
   th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;color:var(--text-dim);padding:10px;border-bottom:1px solid var(--line);background:var(--paper-dim);text-align:left;}
   td{padding:12px 10px;border-bottom:1px solid var(--line);}
@@ -78,6 +78,15 @@
   .badge-role{background:rgba(30,142,90,0.15);color:var(--cube-green);}
   .badge-event{background:rgba(18,23,43,0.08);color:var(--ink);border:1px solid var(--line);margin:2px 2px 2px 0;}
   
+  .phone-link {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .phone-link:hover { text-decoration: underline; color: var(--cube-green); }
+
   .btn{
     padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;
     font-family:'IBM Plex Mono',monospace;transition:opacity .15s ease;
@@ -102,7 +111,7 @@
     <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
   </header>
 
-  <!-- FILTERS & SEARCH -->
+  <!-- Filters & Search -->
   <div class="filter-card">
     <div class="filter-group">
       <label for="roleFilter">Filter by Role</label>
@@ -130,7 +139,7 @@
 
     <div class="filter-group">
       <label for="searchInput">Search Volunteer</label>
-      <input type="text" id="searchInput" class="filter-control" placeholder="Search name or grade..." oninput="applyFilterAndSort()">
+      <input type="text" id="searchInput" class="filter-control" placeholder="Search name, phone, grade..." oninput="applyFilterAndSort()">
     </div>
   </div>
 
@@ -144,6 +153,7 @@
       <thead>
         <tr>
           <th>Full Name</th>
+          <th>Mobile Number</th>
           <th>Grade Level</th>
           <th>Role</th>
           <th>Scramble Events</th>
@@ -151,7 +161,7 @@
       </thead>
       <tbody id="volunteerTableBody">
         <tr>
-          <td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
+          <td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
         </tr>
       </tbody>
     </table>
@@ -159,21 +169,20 @@
 </div>
 
 <script>
-  // REPLACE THIS WITH YOUR DEPLOYED APPS SCRIPT WEB APP URL
   const VOLUNTEER_API_URL = "https://script.google.com/macros/s/AKfycbzcYqKBeoI-SlCik2nVTUWZpZAo1VDzKWn495hkntC615xHwuQNv4g8x3B2TbcjGIOj9A/exec";
 
   let rawVolunteers = [];
 
   function loadVolunteers() {
     const tbody = document.getElementById("volunteerTableBody");
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
 
     fetch(VOLUNTEER_API_URL)
       .then(res => res.json())
       .then(data => {
         rawVolunteers = Array.isArray(data) ? data : (data.data || []);
         if (rawVolunteers.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">No volunteers found.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No volunteers found.</td></tr>`;
           document.getElementById('volunteerCount').innerText = "Showing 0 volunteers";
           return;
         }
@@ -183,11 +192,10 @@
       })
       .catch(err => {
         console.error("Error loading volunteers:", err);
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify VOLUNTEER_API_URL.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify VOLUNTEER_API_URL.</td></tr>`;
       });
   }
 
-  // Populate dynamic options for Role and Scramble Specialty
   function populateDropdowns(data) {
     const roleSelect = document.getElementById('roleFilter');
     const scrambleSelect = document.getElementById('scrambleFilter');
@@ -199,32 +207,28 @@
     const uniqueEvents = new Set();
 
     data.forEach(item => {
-      // Role Extraction
       const roleStr = item.role || item.Role || '';
       if (roleStr) {
         roleStr.split(',').forEach(r => uniqueRoles.add(r.trim()));
       }
 
-      // Scramble Specialty Extraction
       const eventStr = item.scrambleEvents || item.ScrambleEvents || item.events || item.Events || '';
       if (eventStr) {
         eventStr.split(',').forEach(e => {
           const clean = e.trim();
-          if (clean && clean !== '—' && clean.toLowerCase() !== 'none') {
+          if (clean && clean !== '—' && clean.toLowerCase() !== 'none' && clean.toLowerCase() !== 'n/a') {
             uniqueEvents.add(clean);
           }
         });
       }
     });
 
-    // Populate Roles Dropdown
     roleSelect.innerHTML = '<option value="ALL">All Roles</option>';
     uniqueRoles.forEach(r => {
       roleSelect.innerHTML += `<option value="${r}">${r}</option>`;
     });
     if ([...uniqueRoles].includes(currentRole)) roleSelect.value = currentRole;
 
-    // Populate Scramble Dropdown
     scrambleSelect.innerHTML = '<option value="ALL">All Events / Specialties</option>';
     uniqueEvents.forEach(evt => {
       scrambleSelect.innerHTML += `<option value="${evt}">${evt}</option>`;
@@ -238,26 +242,20 @@
     const sortBy = document.getElementById('sortBy').value;
     const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
 
-    // 1. FILTERING
     let filtered = rawVolunteers.filter(row => {
       const role = (row.role || row.Role || '').trim();
       const scrambleEvents = (row.scrambleEvents || row.ScrambleEvents || row.events || row.Events || '').trim();
-      const name = (row.fullName || row.Name || row.fullName || '').toLowerCase();
+      const name = (row.fullName || row.Name || '').toLowerCase();
+      const mobile = String(row.mobileNumber || row.Mobile || row.Phone || '').toLowerCase();
       const grade = String(row.gradeLevel || row.Grade || row.GradeLevel || '').toLowerCase();
 
-      // Role Match
       const matchRole = (roleFilter === 'ALL') || role.toLowerCase().includes(roleFilter.toLowerCase());
-
-      // Specialty / Event Match
       const matchScramble = (scrambleFilter === 'ALL') || scrambleEvents.toLowerCase().includes(scrambleFilter.toLowerCase());
-
-      // Search Query Match (Name or Grade)
-      const matchSearch = !searchQuery || name.includes(searchQuery) || grade.includes(searchQuery);
+      const matchSearch = !searchQuery || name.includes(searchQuery) || mobile.includes(searchQuery) || grade.includes(searchQuery);
 
       return matchRole && matchScramble && matchSearch;
     });
 
-    // 2. MULTI-SORTING
     filtered.sort((a, b) => {
       const roleA = (a.role || a.Role || '').toLowerCase();
       const roleB = (b.role || b.Role || '').toLowerCase();
@@ -291,7 +289,6 @@
       return 0;
     });
 
-    // 3. RENDER TABLE & UPDATE COUNTER
     document.getElementById('volunteerCount').innerText = `Showing ${filtered.length} of ${rawVolunteers.length} volunteers`;
     renderTable(filtered);
   }
@@ -300,27 +297,32 @@
     const tbody = document.getElementById("volunteerTableBody");
 
     if (records.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching volunteers found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching volunteers found.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = records.map(row => {
       const fullName = row.fullName || row.Name || '—';
+      const mobileNumber = row.mobileNumber || row.Mobile || row.Phone || '—';
       const gradeLevel = row.gradeLevel || row.GradeLevel || row.Grade || '—';
       const role = row.role || row.Role || '—';
       const scrambleEvents = row.scrambleEvents || row.ScrambleEvents || row.events || row.Events || '—';
 
-      // Format events into small badges if comma-separated
       let formattedEvents = scrambleEvents;
-      if (scrambleEvents !== '—' && scrambleEvents.toLowerCase() !== 'none') {
+      if (scrambleEvents !== '—' && scrambleEvents.toLowerCase() !== 'none' && scrambleEvents.toLowerCase() !== 'n/a') {
         formattedEvents = scrambleEvents.split(',')
           .map(e => `<span class="badge badge-event">${e.trim()}</span>`)
           .join(" ");
       }
 
+      const phoneDisplay = (mobileNumber !== '—' && mobileNumber !== '')
+        ? `<a href="tel:${mobileNumber}" class="phone-link">📞 ${mobileNumber}</a>` 
+        : '—';
+
       return `
         <tr>
           <td><b>${fullName}</b></td>
+          <td>${phoneDisplay}</td>
           <td>${gradeLevel}</td>
           <td><span class="badge badge-role">${role}</span></td>
           <td>${formattedEvents}</td>
