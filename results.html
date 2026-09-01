@@ -149,6 +149,8 @@
   .match-slot.winner .solve-chip{background:#fff;}
   .solve-chip.win{background:var(--cube-red);color:#fff;border-color:var(--cube-red);font-weight:700;}
   .decided-by{font-size:10px;color:var(--text-dim);text-align:center;font-family:'IBM Plex Mono',monospace;padding:5px 0 1px;}
+  .match-slot.pending{justify-content:center;}
+  .match-slot.pending .slot-name{color:var(--text-dim);font-style:italic;font-size:12.5px;}
   footer{background:var(--ink);color:rgba(246,244,239,0.65);padding:40px 0;font-size:13px;margin-top:60px;}
 </style>
 </head>
@@ -345,8 +347,11 @@
     const tableWrap = document.getElementById("resultsTableWrap");
     const bracketWrap = document.getElementById("bracketWrap");
 
-    // Filter results matching current Event and Round
-    const filtered = allResultsData.filter(r => r.Event === currentEvent && r.Round === currentRound);
+    // Filter results matching current Event and Round. Knockout matches are tagged
+    // "Final — <Match Name>" (e.g. "Final — Quarterfinal 1"), so match on the prefix.
+    const filtered = isKnockoutView()
+      ? allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(currentRound + " — ") === 0)
+      : allResultsData.filter(r => r.Event === currentEvent && r.Round === currentRound);
 
     // Update Live / Complete Badge Status based on latest submission
     if (filtered.length > 0) {
@@ -466,64 +471,106 @@
     </div>`;
   }
 
+  // Fixed bracket slots. Each corresponds to the "Knockout Match" chosen on the
+  // admin entry form — the Round field for a knockout row arrives as
+  // "Final — <one of these>", so results for a given match are just whatever rows
+  // carry that exact tag (normally two: the two competitors who played it).
+  const QF_STAGES = ["Quarterfinal 1", "Quarterfinal 2", "Quarterfinal 3", "Quarterfinal 4"];
+  const SF_STAGES = ["Semifinal 1", "Semifinal 2"];
+  const FINAL_STAGE = "Championship";
+  const BRONZE_STAGE = "3rd Place Match";
+
+  // Groups tagged knockout rows by their match stage. If a competitor was
+  // resubmitted (a correction), the latest row for that person in a stage wins.
+  function groupByStage(rows) {
+    const map = {};
+    rows.forEach(r => {
+      const sepIdx = r.Round.indexOf(" — ");
+      if (sepIdx === -1) return;
+      const stage = r.Round.slice(sepIdx + 3);
+      if (!map[stage]) map[stage] = {};
+      const key = r.CompetitorID || r.Name;
+      map[stage][key] = r; // later rows overwrite earlier ones for the same person
+    });
+    return map;
+  }
+
+  // Resolves what we currently know about one match: both competitors in (complete),
+  // only one submitted so far (pending), or nothing yet (empty).
+  function matchForStage(stageMap, stageName) {
+    const entries = stageMap[stageName] ? Object.values(stageMap[stageName]) : [];
+    if (entries.length >= 2) return { state: "complete", a: entries[0], b: entries[1] };
+    if (entries.length === 1) return { state: "pending", a: entries[0] };
+    return { state: "empty" };
+  }
+
+  function pendingSlotHtml(text) {
+    return `<div class="match-slot pending"><span class="slot-name">${text}</span></div>`;
+  }
+
+  function singleSlotHtml(p) {
+    const chips = [p.Solve1, p.Solve2, p.Solve3].map(t => `<span class="solve-chip">${t || '-'}</span>`).join('');
+    return `<div class="match-slot">
+      <div class="slot-top">
+        <span class="slot-name">${p.Name}</span>
+        <span class="slot-time">${p.Best || '-'}</span>
+      </div>
+      <div class="slot-solves">${chips}</div>
+    </div>`;
+  }
+
+  // Renders one bracket slot's card from its match state — complete, pending
+  // (only one competitor entered), or empty (nothing entered yet).
+  function stageCardHtml(match) {
+    if (match.state === "complete") return matchCardHtml([match.a, match.b]);
+    if (match.state === "pending") {
+      return `<div class="match-card">${singleSlotHtml(match.a)}${pendingSlotHtml("Awaiting opponent")}</div>`;
+    }
+    return `<div class="match-card">${pendingSlotHtml("TBD")}${pendingSlotHtml("TBD")}</div>`;
+  }
+
   function renderBracket(data) {
     const wrap = document.getElementById("bracket");
+    const stageMap = groupByStage(data);
 
-    // Rank by submitted Rank first (falls back to Best time) to seed the bracket
-    const sorted = [...data].sort((a, b) => {
-      const ra = parseInt(a.Rank), rb = parseInt(b.Rank);
-      if (!isNaN(ra) && !isNaN(rb)) return ra - rb;
-      return parseTime(a.Best) - parseTime(b.Best);
-    });
-
-    if (sorted.length < 8) {
-      wrap.innerHTML = `<div class="empty-msg">Waiting for all 8 finalists to qualify (${sorted.length}/8 confirmed).</div>`;
+    const hasAnyStageData = Object.keys(stageMap).length > 0;
+    if (!hasAnyStageData) {
+      wrap.innerHTML = `<div class="empty-msg">No knockout results entered yet. Use the "Knockout Match" field on the entry form to submit each bracket match.</div>`;
       return;
     }
 
-    const seeds = sorted.slice(0, 8);
-    // Standard 8-seed single-elimination bracket: 1v8, 4v5, 3v6, 2v7
-    const qfPairs = [
-      [seeds[0], seeds[7]],
-      [seeds[3], seeds[4]],
-      [seeds[2], seeds[5]],
-      [seeds[1], seeds[6]]
-    ];
-    const qfWinners = qfPairs.map(p => decideWinner(p[0], p[1]));
-    const qfLosers = qfPairs.map((p, i) => (p[0] === qfWinners[i] ? p[1] : p[0]));
+    const qfMatches = QF_STAGES.map(s => matchForStage(stageMap, s));
+    const sfMatches = SF_STAGES.map(s => matchForStage(stageMap, s));
+    const finalMatch = matchForStage(stageMap, FINAL_STAGE);
+    const bronzeMatch = matchForStage(stageMap, BRONZE_STAGE);
 
-    const sfPairs = [
-      [qfWinners[0], qfWinners[1]],
-      [qfWinners[2], qfWinners[3]]
-    ];
-    const sfWinners = sfPairs.map(p => decideWinner(p[0], p[1]));
-    const sfLosers = sfPairs.map((p, i) => (p[0] === sfWinners[i] ? p[1] : p[0]));
+    const championHtml = finalMatch.state === "complete"
+      ? `<div class="champion-card"><div class="champion-badge">🏆 ${headToHead(finalMatch.a, finalMatch.b).winner.Name}</div></div>`
+      : "";
 
-    const finalPair = [sfWinners[0], sfWinners[1]];
-    const champion = decideWinner(finalPair[0], finalPair[1]);
-
-    const bronzePair = [sfLosers[0], sfLosers[1]];
-    const bronzeWinner = decideWinner(bronzePair[0], bronzePair[1]);
+    const bronzeNote = bronzeMatch.state === "complete"
+      ? `3rd Place Match &nbsp;·&nbsp; ${bronzeMatch.a.Name} vs ${bronzeMatch.b.Name} &nbsp;·&nbsp; Winner: <strong>${headToHead(bronzeMatch.a, bronzeMatch.b).winner.Name}</strong>`
+      : bronzeMatch.state === "pending"
+      ? `3rd Place Match &nbsp;·&nbsp; ${bronzeMatch.a.Name} vs awaiting opponent`
+      : `3rd Place Match &nbsp;·&nbsp; awaiting results`;
 
     wrap.innerHTML = `
       <div class="bracket">
         <div class="bracket-round">
           <div class="bracket-round-title">Quarterfinals</div>
-          ${qfPairs.map(p => matchCardHtml(p)).join('')}
+          ${qfMatches.map(m => stageCardHtml(m)).join('')}
         </div>
         <div class="bracket-round">
           <div class="bracket-round-title">Semifinals</div>
-          ${sfPairs.map(p => matchCardHtml(p)).join('')}
+          ${sfMatches.map(m => stageCardHtml(m)).join('')}
         </div>
         <div class="bracket-round">
-          <div class="bracket-round-title">Final</div>
-          ${matchCardHtml(finalPair)}
-          <div class="champion-card">
-            <div class="champion-badge">🏆 ${champion.Name}</div>
-          </div>
+          <div class="bracket-round-title">Championship</div>
+          ${stageCardHtml(finalMatch)}
+          ${championHtml}
         </div>
       </div>
-      <div class="bracket-note">3rd Place Match &nbsp;·&nbsp; ${bronzePair[0].Name} vs ${bronzePair[1].Name} &nbsp;·&nbsp; Winner: <strong>${bronzeWinner.Name}</strong></div>
+      <div class="bracket-note">${bronzeNote}</div>
       <div class="bracket-legend">Each match is a best-of-3 head-to-head — first to 2 solve wins takes it; ties go to average, then single best solve.</div>
     `;
   }
