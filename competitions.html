@@ -694,7 +694,7 @@
     // Filter Logic
     const filtered = allCompetitors.filter(c => {
       // STRICT CONDITION: Only show competitors whose payment status is PAID or YES
-      const paymentStatus = String(c.PaymentStatus || c.status || c.payment || '').toUpperCase().trim();
+      const paymentStatus = String(c.PaymentStatus)
       const isPaid = paymentStatus === 'Paid' || paymentStatus === 'YES';
 
       if (!isPaid) return false;
