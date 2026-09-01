@@ -92,6 +92,12 @@
   @keyframes pulse{0%{opacity:1;}50%{opacity:0.3;}100%{opacity:1;}}
   /* ---------- ROUND TABS ---------- */
   .results-section{padding:40px 0 24px;}
+  .age-group-tabs{display:flex;gap:8px;margin-bottom:14px;}
+  .agegroup-pill{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--line);color:var(--text-dim);cursor:pointer;background:#fff;
+  }
+  .agegroup-pill.active{background:var(--ink);border-color:var(--ink);color:#fff;}
   .round-tabs{display:flex;gap:8px;margin-bottom:26px;border-bottom:1px solid var(--line);}
   .round-tab{
     font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
@@ -195,6 +201,9 @@
   </div>
 </div>
 <div class="wrap results-section">
+  <div class="age-group-tabs" id="ageGroupTabsContainer">
+    <!-- Dynamically populated age-group tabs (only shown for events open to both age groups) -->
+  </div>
   <div class="round-tabs" id="roundTabsContainer">
     <!-- Dynamically populated round tabs -->
   </div>
@@ -235,13 +244,36 @@
     "Megaminx": ["Final"],
     "4x4": ["Final"]
   };
-  // Events whose Final round is run as an 8-person single-elimination knockout
+  // Events whose Final round is run as a single-elimination knockout
   const KNOCKOUT_EVENTS = ["3x3", "2x2"];
   const KNOCKOUT_ROUND_NAME = "Final";
+
+  // Grades 6 & 7 don't run Megaminx or 4x4 (only Grades 8 & 9 do), so those two
+  // events only ever have one age group. Everywhere else both groups compete and
+  // are ranked/bracketed separately.
+  const AGE_GROUP_EVENTS = {
+    "3x3": ["6-7", "8-9"],
+    "2x2": ["6-7", "8-9"],
+    "Pyraminx": ["6-7", "8-9"],
+    "Megaminx": ["8-9"],
+    "4x4": ["8-9"]
+  };
+  const AGE_GROUP_GRADES = {
+    "6-7": ["Grade 6", "Grade 7"],
+    "8-9": ["Grade 8", "Grade 9"]
+  };
+  const AGE_GROUP_LABELS = {
+    "6-7": "Grades 6–7",
+    "8-9": "Grades 8–9"
+  };
+  // Grades 6–7 field fewer competitors, so their Final runs a 4-person bracket
+  // (Semifinals → Championship) instead of the 8-person Quarterfinal-onward one.
+  const BRACKET_SIZE = { "6-7": 4, "8-9": 8 };
 
   let allResultsData = [];
   let currentEvent = "3x3";
   let currentRound = "First Round";
+  let currentAgeGroup = "8-9";
 
   function fetchResults() {
     fetch(RESULTS_API_URL)
@@ -259,6 +291,13 @@
     currentEvent = eventName;
     currentRound = EVENT_ROUNDS[eventName][0]; // Reset to first available round
 
+    // Megaminx/4x4 only have a Grades 8–9 group — if we were showing 6–7, fall
+    // back to whichever group this event actually has.
+    const groupsHere = AGE_GROUP_EVENTS[eventName] || ["8-9"];
+    if (!groupsHere.includes(currentAgeGroup)) {
+      currentAgeGroup = groupsHere[0];
+    }
+
     // Update active pill UI
     document.querySelectorAll(".event-pill").forEach(btn => {
       btn.classList.toggle("current", btn.innerText.trim() === eventName);
@@ -271,10 +310,31 @@
     renderPage();
   }
 
+  function switchAgeGroup(group) {
+    currentAgeGroup = group;
+    renderPage();
+  }
+
   function renderPage() {
     updateHeader(currentEvent);
+    renderAgeGroupTabs();
     renderRoundTabs();
     renderTableAndStatus();
+  }
+
+  // Only shown for events both age groups actually compete in (not Megaminx/4x4).
+  function renderAgeGroupTabs() {
+    const container = document.getElementById("ageGroupTabsContainer");
+    const groups = AGE_GROUP_EVENTS[currentEvent] || ["8-9"];
+    if (groups.length <= 1) {
+      container.innerHTML = "";
+      return;
+    }
+    container.innerHTML = groups.map(g => `
+      <button class="agegroup-pill ${g === currentAgeGroup ? 'active' : ''}" onclick="switchAgeGroup('${g}')">
+        ${AGE_GROUP_LABELS[g]}
+      </button>
+    `).join("");
   }
 
   // ---------- Header (badge + title) ----------
@@ -347,11 +407,14 @@
     const tableWrap = document.getElementById("resultsTableWrap");
     const bracketWrap = document.getElementById("bracketWrap");
 
-    // Filter results matching current Event and Round. Knockout matches are tagged
-    // "Final — <Match Name>" (e.g. "Final — Quarterfinal 1"), so match on the prefix.
+    // Filter results matching current Event, Round and age group. Knockout matches
+    // are tagged "Final — <Age Group> — <Match Name>" (e.g. "Final — 6-7 — Semifinal 1"),
+    // so match on that prefix; non-knockout rounds just filter by each row's Grade.
+    const groupGrades = AGE_GROUP_GRADES[currentAgeGroup] || [];
+    const knockoutPrefix = `${currentRound} — ${currentAgeGroup} — `;
     const filtered = isKnockoutView()
-      ? allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(currentRound + " — ") === 0)
-      : allResultsData.filter(r => r.Event === currentEvent && r.Round === currentRound);
+      ? allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(knockoutPrefix) === 0)
+      : allResultsData.filter(r => r.Event === currentEvent && r.Round === currentRound && groupGrades.includes(r.Grade));
 
     // Update Live / Complete Badge Status based on latest submission
     if (filtered.length > 0) {
@@ -364,7 +427,7 @@
     if (isKnockoutView()) {
       tableWrap.style.display = "none";
       bracketWrap.style.display = "block";
-      renderBracket(filtered);
+      renderBracket(filtered, currentAgeGroup);
       return;
     }
 
@@ -485,7 +548,11 @@
   function groupByStage(rows) {
     const map = {};
     rows.forEach(r => {
-      const sepIdx = r.Round.indexOf(" — ");
+      // Stage name is always the last "<...> — " segment, whether the tag is the
+      // older 2-part form ("Final — Quarterfinal 1") or the age-group-aware 3-part
+      // form ("Final — 6-7 — Quarterfinal 1") — rows here are already scoped to one
+      // event/round/age-group prefix, so this is unambiguous.
+      const sepIdx = r.Round.lastIndexOf(" — ");
       if (sepIdx === -1) return;
       const stage = r.Round.slice(sepIdx + 3);
       if (!map[stage]) map[stage] = {};
@@ -529,17 +596,21 @@
     return `<div class="match-card">${pendingSlotHtml("TBD")}${pendingSlotHtml("TBD")}</div>`;
   }
 
-  function renderBracket(data) {
+  function renderBracket(data, ageGroup) {
     const wrap = document.getElementById("bracket");
     const stageMap = groupByStage(data);
+    const bracketSize = BRACKET_SIZE[ageGroup] || 8;
+    // Grades 6–7 run a 4-person bracket — Quarterfinals don't exist for them, so
+    // that column (and its stage tags) is skipped entirely.
+    const useQuarters = bracketSize > 4;
 
     const hasAnyStageData = Object.keys(stageMap).length > 0;
     if (!hasAnyStageData) {
-      wrap.innerHTML = `<div class="empty-msg">No knockout results entered yet. Use the "Knockout Match" field on the entry form to submit each bracket match.</div>`;
+      wrap.innerHTML = `<div class="empty-msg">No knockout results entered yet for ${AGE_GROUP_LABELS[ageGroup]} (${bracketSize}-competitor bracket). Use the "Knockout Match" field on the entry form to submit each bracket match.</div>`;
       return;
     }
 
-    const qfMatches = QF_STAGES.map(s => matchForStage(stageMap, s));
+    const qfMatches = useQuarters ? QF_STAGES.map(s => matchForStage(stageMap, s)) : [];
     const sfMatches = SF_STAGES.map(s => matchForStage(stageMap, s));
     const finalMatch = matchForStage(stageMap, FINAL_STAGE);
     const bronzeMatch = matchForStage(stageMap, BRONZE_STAGE);
@@ -554,12 +625,15 @@
       ? `3rd Place Match &nbsp;·&nbsp; ${bronzeMatch.a.Name} vs awaiting opponent`
       : `3rd Place Match &nbsp;·&nbsp; awaiting results`;
 
-    wrap.innerHTML = `
-      <div class="bracket">
+    const qfColumnHtml = useQuarters ? `
         <div class="bracket-round">
           <div class="bracket-round-title">Quarterfinals</div>
           ${qfMatches.map(m => stageCardHtml(m)).join('')}
-        </div>
+        </div>` : '';
+
+    wrap.innerHTML = `
+      <div class="bracket" style="min-width:${useQuarters ? 740 : 420}px;">
+        ${qfColumnHtml}
         <div class="bracket-round">
           <div class="bracket-round-title">Semifinals</div>
           ${sfMatches.map(m => stageCardHtml(m)).join('')}
@@ -570,7 +644,7 @@
           ${championHtml}
         </div>
       </div>
-      <div class="bracket-note">${bronzeNote}</div>
+      <div class="bracket-note">${AGE_GROUP_LABELS[ageGroup]} &nbsp;·&nbsp; ${bronzeNote}</div>
       <div class="bracket-legend">Each match is a best-of-3 head-to-head — first to 2 solve wins takes it; ties go to average, then single best solve.</div>
     `;
   }
