@@ -22,7 +22,6 @@
   h1{font-family:'Space Grotesk',sans-serif;font-size:24px;}
   .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
   .back-link:hover{color:var(--ink);}
-
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;}
   .form-group{margin-bottom:14px;}
   .form-group label{display:block;font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text-dim);margin-bottom:4px;}
@@ -31,22 +30,20 @@
   }
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
-
   .btn-submit{
     background:var(--cube-blue);color:#fff;width:100%;padding:12px;font-size:14px;
     border-radius:8px;border:none;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;
   }
   .btn-submit:hover{opacity:0.9;}
+  .hint{font-size:11.5px;color:var(--text-dim);margin-top:6px;line-height:1.4;}
 </style>
 </head>
 <body>
-
 <div class="wrap">
   <header>
     <h1>Submit Solves &amp; Timing</h1>
     <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
   </header>
-
   <div class="card">
     <form id="timingForm" onsubmit="submitTimings(event)">
       <!-- Station Number & Event Row -->
@@ -66,29 +63,31 @@
           </select>
         </div>
       </div>
-
       <div class="form-group">
         <label>Round</label>
-        <select id="roundSelect">
+        <select id="roundSelect" onchange="toggleStageField()">
           <!-- Dynamically populated -->
         </select>
       </div>
-
+      <div class="form-group" id="stageGroup" style="display:none;">
+        <label>Knockout Match</label>
+        <select id="stageSelect">
+          <!-- Dynamically populated for 2x2 / 3x3 Final -->
+        </select>
+        <div class="hint">Submit once per competitor — enter both players' solves separately for the same match.</div>
+      </div>
       <div class="form-group">
         <label>Competitor ID</label>
         <input type="text" id="compId" placeholder="e.g. C1" required>
       </div>
-
       <div class="form-group">
         <label>Name</label>
         <input type="text" id="compName" placeholder="Full Name" required>
       </div>
-
       <div class="form-group">
         <label>Grade</label>
         <input type="text" id="compGrade" placeholder="e.g. Grade 7">
       </div>
-
       <div class="form-group">
         <label>Solves (in seconds, e.g. 14.52)</label>
         <div class="form-row-3">
@@ -97,7 +96,6 @@
           <input type="number" step="0.01" id="s3" placeholder="S3">
         </div>
       </div>
-
       <div class="form-group">
         <label>Round Status</label>
         <select id="statusSelect">
@@ -106,51 +104,78 @@
           <option value="Upcoming">Upcoming</option>
         </select>
       </div>
-
       <button type="submit" class="btn-submit" id="saveBtn">Save Timings</button>
     </form>
   </div>
 </div>
-
 <script>
   // DEPLOYED URL FOR YOUR RESULTS SPREADSHEET APPS SCRIPT
   const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec"; // UPDATE THIS TO YOUR RESULTS SCRIPT URL
-
   const EVENT_ROUNDS = {
     "3x3": ["First Round", "Second Round", "Final"],
-    "2x2": ["First Round", "Final"],
+    "2x2": ["First Round", "Second Round", "Final"],
     "Pyraminx": ["First Round", "Final"],
     "4x4": ["Final"],
     "Megaminx": ["Final"]
   };
+  // 3x3 and 2x2 Finals run as an 8-person knockout bracket. Each of these is a
+  // single head-to-head match — the results page groups entries by this exact tag.
+  const KNOCKOUT_EVENTS = ["3x3", "2x2"];
+  const KNOCKOUT_ROUND_NAME = "Final";
+  const KNOCKOUT_STAGES = [
+    "Quarterfinal 1", "Quarterfinal 2", "Quarterfinal 3", "Quarterfinal 4",
+    "Semifinal 1", "Semifinal 2",
+    "Championship",
+    "3rd Place Match"
+  ];
 
   function updateRoundOptions() {
     const eventSel = document.getElementById("eventSelect").value;
     const roundSel = document.getElementById("roundSelect");
     const rounds = EVENT_ROUNDS[eventSel] || ["Final"];
-
     roundSel.innerHTML = rounds.map(r => `<option value="${r}">${r}</option>`).join("");
+    toggleStageField();
   }
 
+  function toggleStageField() {
+    const eventSel = document.getElementById("eventSelect").value;
+    const roundSel = document.getElementById("roundSelect").value;
+    const stageGroup = document.getElementById("stageGroup");
+    const stageSelect = document.getElementById("stageSelect");
+    const isKnockout = KNOCKOUT_EVENTS.includes(eventSel) && roundSel === KNOCKOUT_ROUND_NAME;
+    if (isKnockout) {
+      stageGroup.style.display = "block";
+      stageSelect.innerHTML = KNOCKOUT_STAGES.map(s => `<option value="${s}">${s}</option>`).join("");
+    } else {
+      stageGroup.style.display = "none";
+      stageSelect.innerHTML = "";
+    }
+  }
   function submitTimings(e) {
     e.preventDefault();
     const btn = document.getElementById("saveBtn");
     btn.disabled = true;
     btn.innerText = "Saving...";
-
     const s1 = parseFloat(document.getElementById("s1").value) || 0;
     const s2 = parseFloat(document.getElementById("s2").value) || 0;
     const s3 = parseFloat(document.getElementById("s3").value) || 0;
-
     const solves = [s1, s2, s3].filter(s => s > 0);
     const best = solves.length > 0 ? Math.min(...solves).toFixed(2) : "-";
     const avg = solves.length > 0 ? (solves.reduce((a, b) => a + b, 0) / solves.length).toFixed(2) : "-";
+
+    // When this is a knockout match, tag the Round with which bracket match it is
+    // (e.g. "Final — Quarterfinal 1") so the results page can pair the two
+    // competitors' entries into that specific match instead of guessing.
+    const roundVal = document.getElementById("roundSelect").value;
+    const stageVisible = document.getElementById("stageGroup").style.display !== "none";
+    const stageVal = document.getElementById("stageSelect").value;
+    const roundToSend = stageVisible && stageVal ? `${roundVal} — ${stageVal}` : roundVal;
 
     const payload = {
       action: "submitResult",
       Station: document.getElementById("stationNum").value, // NEW: Sends station number
       Event: document.getElementById("eventSelect").value,
-      Round: document.getElementById("roundSelect").value,
+      Round: roundToSend,
       Rank: "",
       CompetitorID: document.getElementById("compId").value,
       Name: document.getElementById("compName").value,
@@ -162,7 +187,6 @@
       Best: best,
       Status: document.getElementById("statusSelect").value
     };
-
     fetch(RESULTS_API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -187,7 +211,6 @@
       alert("Failed to submit timings to backend.");
     });
   }
-
   document.addEventListener("DOMContentLoaded", updateRoundOptions);
 </script>
 </body>
