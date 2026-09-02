@@ -36,6 +36,12 @@
   }
   .btn-submit:hover{opacity:0.9;}
   .hint{font-size:11.5px;color:var(--text-dim);margin-top:6px;line-height:1.4;}
+  .refresh-btn{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--cube-blue);
+    background:none;border:none;cursor:pointer;padding:0;
+  }
+  .refresh-btn:hover{text-decoration:underline;}
+  .refresh-btn:disabled{opacity:0.5;cursor:not-allowed;text-decoration:none;}
 </style>
 </head>
 <body>
@@ -91,12 +97,14 @@
         <div class="hint" id="stageHint">Submit once per competitor — enter both players' solves separately for the same match.</div>
       </div>
       <div class="form-group">
-        <label>Competitor ID</label>
-        <input type="text" id="compId" placeholder="e.g. C1" required>
-      </div>
-      <div class="form-group">
-        <label>Name</label>
-        <input type="text" id="compName" placeholder="Full Name" required>
+        <label style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Competitor</span>
+          <button type="button" id="refreshCompBtn" class="refresh-btn" onclick="fetchRegisteredCompetitors()">&#8635; Refresh</button>
+        </label>
+        <select id="competitorSelect" required>
+          <option value="">Loading competitors…</option>
+        </select>
+        <div class="hint" id="competitorHint">Only paid competitors registered for the selected grade &amp; event show up here. Just marked someone paid? Hit Refresh.</div>
       </div>
       <div class="form-group">
         <label>Solves (in seconds, e.g. 14.52)</label>
@@ -121,6 +129,9 @@
 <script>
   // DEPLOYED URL FOR YOUR RESULTS SPREADSHEET APPS SCRIPT
   const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec"; // UPDATE THIS TO YOUR RESULTS SCRIPT URL
+  // Same registrations endpoint the "Mark as Paid" admin page and the public
+  // competitions page use — this is what feeds the Competitor dropdown below.
+  const REGISTRATION_API_URL = "https://script.google.com/macros/s/AKfycbyBZ_xge06xvF4sdKAndQKwtQlAhZjvHjl4HgF_1iGvCYzXD4uruJpk01D95D-ASHW7/exec";
   const EVENT_ROUNDS = {
     "3x3": ["First Round", "Second Round", "Final"],
     "2x2": ["First Round", "Second Round", "Final"],
@@ -152,6 +163,89 @@
     return (grade === "Grade 6" || grade === "Grade 7") ? "6-7" : "8-9";
   }
 
+  // ---------- Competitor picker (replaces free-typed ID/Name) ----------
+  // Same normalized shape used on the competitions/registrations page, so this
+  // page tolerates whichever field names the registrations endpoint returns.
+  let allRegisteredCompetitors = [];
+
+  function normalizeRegistration(c) {
+    return {
+      compId: c.compId || c.id || c.ID || c.CompetitorID || "—",
+      name: c.name || c.fullName || c.Name || "—",
+      grade: c.ageGroup || c.grade || c.gradeLevel || c.Grade || "",
+      events: String(c.events || c.scrambleEvents || c.Events || c.Event || c.SelectedEvents || ""),
+      paymentStatus: String(c.PaymentStatus || c.paymentStatus || c.FeeStatus || c.feeStatus || "Pending")
+    };
+  }
+  function hasEvent(c, key) {
+    return c.events.split(",").map(e => e.trim().toLowerCase()).includes(key.toLowerCase());
+  }
+  // registration.html stores grade as a bare number ("6"); this form's Grade
+  // dropdown sends "Grade 6" — compare on just the digit so the two line up
+  // regardless of which style the registrations sheet actually has.
+  function gradeDigit(g) {
+    const m = String(g).match(/\d+/);
+    return m ? m[0] : null;
+  }
+
+  // Also wired to the "Refresh" button next to the Competitor field — refetches
+  // just the roster, so a station can pick up someone newly marked Paid without
+  // reloading the page and losing whatever's already filled in on the form.
+  function fetchRegisteredCompetitors() {
+    const refreshBtn = document.getElementById("refreshCompBtn");
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.innerText = "Refreshing…";
+    }
+    fetch(`${REGISTRATION_API_URL}?action=registrations`)
+      .then(res => res.json())
+      .then(data => {
+        const rows = Array.isArray(data) ? data : (data.data || []);
+        allRegisteredCompetitors = rows.map(normalizeRegistration);
+        populateCompetitorDropdown();
+      })
+      .catch(err => {
+        console.error("Error loading registered competitors:", err);
+        document.getElementById("competitorSelect").innerHTML =
+          `<option value="">Failed to load competitor list</option>`;
+      })
+      .finally(() => {
+        if (refreshBtn) {
+          refreshBtn.disabled = false;
+          refreshBtn.innerText = "↻ Refresh";
+        }
+      });
+  }
+
+  // Narrows the picker to paid competitors matching the currently selected
+  // Grade and Event, so an admin can't accidentally log a time against the
+  // wrong person or an event they're not entered in.
+  function populateCompetitorDropdown() {
+    const sel = document.getElementById("competitorSelect");
+    const grade = document.getElementById("gradeSelect").value;
+    const eventSel = document.getElementById("eventSelect").value;
+    const gradeDig = gradeDigit(grade);
+
+    if (allRegisteredCompetitors.length === 0) {
+      sel.innerHTML = `<option value="">Loading competitors…</option>`;
+      return;
+    }
+
+    const eligible = allRegisteredCompetitors
+      .filter(c => ["paid", "yes", "true"].includes(c.paymentStatus.toLowerCase()))
+      .filter(c => gradeDigit(c.grade) === gradeDig)
+      .filter(c => hasEvent(c, eventSel))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (eligible.length === 0) {
+      sel.innerHTML = `<option value="">No paid ${grade} competitors registered for ${eventSel}</option>`;
+      return;
+    }
+
+    sel.innerHTML = `<option value="" disabled selected>Select competitor…</option>` +
+      eligible.map(c => `<option value="${c.compId}" data-name="${c.name}">${c.name} (${c.compId})</option>`).join("");
+  }
+
   // Grades 6 & 7 don't run Megaminx or 4x4 (matches the registration page's rule).
   // When one of those grades is selected, grey out those two Event options; if the
   // admin already had one picked, fall back to 3x3 so a mismatched entry can't be saved.
@@ -174,6 +268,7 @@
     const rounds = EVENT_ROUNDS[eventSel] || ["Final"];
     roundSel.innerHTML = rounds.map(r => `<option value="${r}">${r}</option>`).join("");
     toggleStageField();
+    populateCompetitorDropdown();
   }
 
   function toggleStageField() {
@@ -199,6 +294,14 @@
   }
   function submitTimings(e) {
     e.preventDefault();
+    const competitorSelect = document.getElementById("competitorSelect");
+    const compId = competitorSelect.value;
+    if (!compId) {
+      alert("Select a competitor first.");
+      return;
+    }
+    const compName = competitorSelect.selectedOptions[0].dataset.name;
+
     const btn = document.getElementById("saveBtn");
     btn.disabled = true;
     btn.innerText = "Saving...";
@@ -226,8 +329,8 @@
       Event: document.getElementById("eventSelect").value,
       Round: roundToSend,
       Rank: "",
-      CompetitorID: document.getElementById("compId").value,
-      Name: document.getElementById("compName").value,
+      CompetitorID: compId,
+      Name: compName,
       Grade: document.getElementById("gradeSelect").value,
       Solve1: s1 ? s1.toFixed(2) : "-",
       Solve2: s2 ? s2.toFixed(2) : "-",
@@ -260,7 +363,10 @@
       alert("Failed to submit timings to backend.");
     });
   }
-  document.addEventListener("DOMContentLoaded", updateEventAvailability);
+  document.addEventListener("DOMContentLoaded", () => {
+    updateEventAvailability();
+    fetchRegisteredCompetitors();
+  });
 </script>
 </body>
 </html>
