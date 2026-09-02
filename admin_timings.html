@@ -22,7 +22,6 @@
   h1{font-family:'Space Grotesk',sans-serif;font-size:24px;}
   .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
   .back-link:hover{color:var(--ink);}
-
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;}
   .form-group{margin-bottom:14px;}
   .form-group label{display:block;font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text-dim);margin-bottom:4px;}
@@ -31,64 +30,74 @@
   }
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
-
   .btn-submit{
     background:var(--cube-blue);color:#fff;width:100%;padding:12px;font-size:14px;
     border-radius:8px;border:none;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;
   }
   .btn-submit:hover{opacity:0.9;}
+  .hint{font-size:11.5px;color:var(--text-dim);margin-top:6px;line-height:1.4;}
 </style>
 </head>
 <body>
-
 <div class="wrap">
   <header>
     <h1>Submit Solves &amp; Timing</h1>
     <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
   </header>
-
   <div class="card">
     <form id="timingForm" onsubmit="submitTimings(event)">
-      <!-- Station Number & Event Row -->
+      <!-- Station Number & Grade Row -->
       <div class="form-row">
         <div class="form-group">
           <label>Station Number</label>
           <input type="number" id="stationNum" placeholder="e.g. 1" min="1" required>
         </div>
         <div class="form-group">
-          <label>Event</label>
-          <select id="eventSelect" onchange="updateRoundOptions()">
-            <option value="3x3">3x3</option>
-            <option value="2x2">2x2</option>
-            <option value="Pyraminx">Pyraminx</option>
-            <option value="4x4">4x4</option>
-            <option value="Megaminx">Megaminx</option>
+          <label>Grade</label>
+          <select id="gradeSelect" onchange="updateEventAvailability()" required>
+            <optgroup label="Age Group: Grades 6–7">
+              <option value="Grade 6">Grade 6</option>
+              <option value="Grade 7">Grade 7</option>
+            </optgroup>
+            <optgroup label="Age Group: Grades 8–9">
+              <option value="Grade 8">Grade 8</option>
+              <option value="Grade 9">Grade 9</option>
+            </optgroup>
           </select>
         </div>
       </div>
-
+      <div class="form-group">
+        <label>Event</label>
+        <select id="eventSelect" onchange="updateRoundOptions()">
+          <option value="3x3">3x3</option>
+          <option value="2x2">2x2</option>
+          <option value="Pyraminx">Pyraminx</option>
+          <option value="4x4">4x4</option>
+          <option value="Megaminx">Megaminx</option>
+        </select>
+        <div class="hint">Megaminx and 4x4 are only open to Grades 8 &amp; 9.</div>
+      </div>
       <div class="form-group">
         <label>Round</label>
-        <select id="roundSelect">
+        <select id="roundSelect" onchange="toggleStageField()">
           <!-- Dynamically populated -->
         </select>
       </div>
-
+      <div class="form-group" id="stageGroup" style="display:none;">
+        <label>Knockout Match</label>
+        <select id="stageSelect">
+          <!-- Dynamically populated for 2x2 / 3x3 Final -->
+        </select>
+        <div class="hint" id="stageHint">Submit once per competitor — enter both players' solves separately for the same match.</div>
+      </div>
       <div class="form-group">
         <label>Competitor ID</label>
         <input type="text" id="compId" placeholder="e.g. C1" required>
       </div>
-
       <div class="form-group">
         <label>Name</label>
         <input type="text" id="compName" placeholder="Full Name" required>
       </div>
-
-      <div class="form-group">
-        <label>Grade</label>
-        <input type="text" id="compGrade" placeholder="e.g. Grade 7">
-      </div>
-
       <div class="form-group">
         <label>Solves (in seconds, e.g. 14.52)</label>
         <div class="form-row-3">
@@ -97,7 +106,6 @@
           <input type="number" step="0.01" id="s3" placeholder="S3">
         </div>
       </div>
-
       <div class="form-group">
         <label>Round Status</label>
         <select id="statusSelect">
@@ -106,55 +114,121 @@
           <option value="Upcoming">Upcoming</option>
         </select>
       </div>
-
       <button type="submit" class="btn-submit" id="saveBtn">Save Timings</button>
     </form>
   </div>
 </div>
-
 <script>
   // DEPLOYED URL FOR YOUR RESULTS SPREADSHEET APPS SCRIPT
   const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec"; // UPDATE THIS TO YOUR RESULTS SCRIPT URL
-
   const EVENT_ROUNDS = {
     "3x3": ["First Round", "Second Round", "Final"],
-    "2x2": ["First Round", "Final"],
+    "2x2": ["First Round", "Second Round", "Final"],
     "Pyraminx": ["First Round", "Final"],
     "4x4": ["Final"],
     "Megaminx": ["Final"]
   };
+  // 3x3 and 2x2 Finals run as a knockout bracket. Each stage is a single head-to-head
+  // match — the results page groups entries by this exact tag. Grades 8–9 run the
+  // full 8-person bracket; Grades 6–7 field fewer competitors so theirs is a
+  // 4-person bracket (no Quarterfinals).
+  const KNOCKOUT_EVENTS = ["3x3", "2x2"];
+  const KNOCKOUT_ROUND_NAME = "Final";
+  const KNOCKOUT_STAGES_8_9 = [
+    "Quarterfinal 1", "Quarterfinal 2", "Quarterfinal 3", "Quarterfinal 4",
+    "Semifinal 1", "Semifinal 2",
+    "Championship",
+    "3rd Place Match"
+  ];
+  const KNOCKOUT_STAGES_6_7 = [
+    "Semifinal 1", "Semifinal 2",
+    "Championship",
+    "3rd Place Match"
+  ];
+
+  // Which age group a Grade belongs to — used for the Megaminx/4x4 restriction
+  // and to tag which bracket size a knockout entry belongs to.
+  function ageGroupForGrade(grade) {
+    return (grade === "Grade 6" || grade === "Grade 7") ? "6-7" : "8-9";
+  }
+
+  // Grades 6 & 7 don't run Megaminx or 4x4 (matches the registration page's rule).
+  // When one of those grades is selected, grey out those two Event options; if the
+  // admin already had one picked, fall back to 3x3 so a mismatched entry can't be saved.
+  function updateEventAvailability() {
+    const grade = document.getElementById("gradeSelect").value;
+    const restricted = (grade === "Grade 6" || grade === "Grade 7");
+    const eventSel = document.getElementById("eventSelect");
+    Array.from(eventSel.options).forEach(opt => {
+      opt.disabled = restricted && (opt.value === "4x4" || opt.value === "Megaminx");
+    });
+    if (restricted && (eventSel.value === "4x4" || eventSel.value === "Megaminx")) {
+      eventSel.value = "3x3";
+    }
+    updateRoundOptions();
+  }
 
   function updateRoundOptions() {
     const eventSel = document.getElementById("eventSelect").value;
     const roundSel = document.getElementById("roundSelect");
     const rounds = EVENT_ROUNDS[eventSel] || ["Final"];
-
     roundSel.innerHTML = rounds.map(r => `<option value="${r}">${r}</option>`).join("");
+    toggleStageField();
   }
 
+  function toggleStageField() {
+    const eventSel = document.getElementById("eventSelect").value;
+    const roundSel = document.getElementById("roundSelect").value;
+    const gradeSel = document.getElementById("gradeSelect").value;
+    const stageGroup = document.getElementById("stageGroup");
+    const stageSelect = document.getElementById("stageSelect");
+    const stageHint = document.getElementById("stageHint");
+    const isKnockout = KNOCKOUT_EVENTS.includes(eventSel) && roundSel === KNOCKOUT_ROUND_NAME;
+    if (isKnockout) {
+      const ageGroup = ageGroupForGrade(gradeSel);
+      const stages = ageGroup === "6-7" ? KNOCKOUT_STAGES_6_7 : KNOCKOUT_STAGES_8_9;
+      stageGroup.style.display = "block";
+      stageSelect.innerHTML = stages.map(s => `<option value="${s}">${s}</option>`).join("");
+      stageHint.innerText = ageGroup === "6-7"
+        ? "Grades 6–7 run a 4-competitor bracket (Semifinals → Championship). Submit once per competitor — enter both players' solves separately for the same match."
+        : "Grades 8–9 run the full 8-competitor bracket (Quarterfinals → Championship). Submit once per competitor — enter both players' solves separately for the same match.";
+    } else {
+      stageGroup.style.display = "none";
+      stageSelect.innerHTML = "";
+    }
+  }
   function submitTimings(e) {
     e.preventDefault();
     const btn = document.getElementById("saveBtn");
     btn.disabled = true;
     btn.innerText = "Saving...";
-
     const s1 = parseFloat(document.getElementById("s1").value) || 0;
     const s2 = parseFloat(document.getElementById("s2").value) || 0;
     const s3 = parseFloat(document.getElementById("s3").value) || 0;
-
     const solves = [s1, s2, s3].filter(s => s > 0);
     const best = solves.length > 0 ? Math.min(...solves).toFixed(2) : "-";
     const avg = solves.length > 0 ? (solves.reduce((a, b) => a + b, 0) / solves.length).toFixed(2) : "-";
+
+    // When this is a knockout match, tag the Round with the age group and which
+    // bracket match it is (e.g. "Final — 6-7 — Semifinal 1") so the results page
+    // can pair the two competitors' entries into that specific match — and keep
+    // the 6–7 and 8–9 brackets from colliding, since both use stage names like
+    // "Semifinal 1" but run separate brackets.
+    const roundVal = document.getElementById("roundSelect").value;
+    const stageVisible = document.getElementById("stageGroup").style.display !== "none";
+    const stageVal = document.getElementById("stageSelect").value;
+    const ageGroup = ageGroupForGrade(document.getElementById("gradeSelect").value);
+    const roundToSend = stageVisible && stageVal ? `${roundVal} — ${ageGroup} — ${stageVal}` : roundVal;
 
     const payload = {
       action: "submitResult",
       Station: document.getElementById("stationNum").value, // NEW: Sends station number
       Event: document.getElementById("eventSelect").value,
-      Round: document.getElementById("roundSelect").value,
+      Round: roundToSend,
       Rank: "",
       CompetitorID: document.getElementById("compId").value,
       Name: document.getElementById("compName").value,
-      Grade: document.getElementById("compGrade").value,
+      Grade: document.getElementById("gradeSelect").value,
       Solve1: s1 ? s1.toFixed(2) : "-",
       Solve2: s2 ? s2.toFixed(2) : "-",
       Solve3: s3 ? s3.toFixed(2) : "-",
@@ -162,7 +236,6 @@
       Best: best,
       Status: document.getElementById("statusSelect").value
     };
-
     fetch(RESULTS_API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -175,7 +248,7 @@
       if (res.success || res.status === "success") {
         alert("Timing saved successfully!");
         document.getElementById("timingForm").reset();
-        updateRoundOptions();
+        updateEventAvailability();
       } else {
         alert("Error saving timings: " + (res.error || res.message || "Unknown error"));
       }
@@ -187,8 +260,7 @@
       alert("Failed to submit timings to backend.");
     });
   }
-
-  document.addEventListener("DOMContentLoaded", updateRoundOptions);
+  document.addEventListener("DOMContentLoaded", updateEventAvailability);
 </script>
 </body>
 </html>
