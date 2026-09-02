@@ -92,7 +92,7 @@
 <nav>
   <div class="nav-inner">
     <a href="#" class="logo">
-     <img src="FKS Logo.png" class="logo-mark"> <span>FKS Cubing Open 2026</span>
+     <img src="FKS Logo.png" class="logo-mark" alt="FKS Logo"> <span>FKS Cubing Open 2026</span>
     </a>
     <div class="nav-links">
       <a href="#" class="active">Register</a>
@@ -105,7 +105,7 @@
   <div class="eyebrow"><span class="eyebrow-dot"></span> Saturday, October 3, 2026</div>
   <h1>Register</h1>
   <p>Pick a grade, choose your events, and you're in. Fees adjust automatically below.<br>
-  Please also feel free to volunteer to make this event a sucess.</p>
+  Please also feel free to volunteer to make this event a success.</p>
 </header>
 
 <section class="form-section wrap">
@@ -142,14 +142,14 @@
           <div class="event-check" data-event="megaminx" style="--e-color:var(--cube-green);">
             <span class="event-dot"></span><span class="name">Megaminx</span><span class="check-icon"></span>
           </div>
-           <div class="event-check" data-event="4x4" style="--e-color:var(--cube-orange);">
+          <div class="event-check" data-event="4x4" style="--e-color:var(--cube-orange);">
             <span class="event-dot"></span><span class="name">4x4</span><span class="check-icon"></span>
-           </div>
+          </div>
         </div>
       </div>
 
       <div class="fee-summary">
-        <span class="label" id="fee-label">Select at least one event</span>
+        <span class="label" id="fee-label">Select grade and at least one event</span>
         <span class="amount" id="fee-amount">₹0</span>
       </div>
 
@@ -164,15 +164,30 @@
 
 <footer>
   <div class="footer-inner">
-    <div class="logo"><img class="logo-mark" src="FKS Logo.png"></div>
+    <div class="logo"><img class="logo-mark" src="FKS Logo.png" alt="FKS Logo"></div>
   </div>
 </footer>
 
 <script>
+  // DEPLOYED GOOGLE APPS SCRIPT WEB APP URL FOR REGISTRATIONS
+  const REGISTRATION_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec";
+
+  // Fee configuration: ₹150 for base event, ₹100 for each additional event
+  const BASE_FEE = 150;
+  const EXTRA_EVENT_FEE = 100;
+
   let selectedGrade = null;
+  const form = document.getElementById('reg-form');
+  const nameInput = document.getElementById('name');
   const gradePills = document.querySelectorAll('.radio-pill');
   const eventChecks = document.querySelectorAll('.event-check');
   const submitBtn = document.getElementById('submit-btn');
+  const feeLabel = document.getElementById('fee-label');
+  const feeAmount = document.getElementById('fee-amount');
+  const statusMsg = document.getElementById('status-msg');
+
+  // Input Name Listener
+  nameInput.addEventListener('input', checkFormValidity);
 
   // Grade Selection Logic
   gradePills.forEach(pill => {
@@ -182,6 +197,7 @@
       selectedGrade = pill.getAttribute('data-grade');
 
       updateEventRestrictions();
+      calculatePricing();
       checkFormValidity();
     });
   });
@@ -192,6 +208,7 @@
       if (check.classList.contains('disabled')) return;
       
       check.classList.toggle('selected');
+      calculatePricing();
       checkFormValidity();
     });
   });
@@ -212,13 +229,87 @@
     });
   }
 
+  // Calculate & Display Fee Breakdown
+  function calculatePricing() {
+    const selectedEventsCount = document.querySelectorAll('.event-check.selected').length;
+
+    if (selectedEventsCount === 0) {
+      feeLabel.textContent = selectedGrade ? "Select at least one event" : "Select grade and at least one event";
+      feeAmount.textContent = "₹0";
+      return 0;
+    }
+
+    const totalFee = BASE_FEE + ((selectedEventsCount - 1) * EXTRA_EVENT_FEE);
+    const eventText = selectedEventsCount === 1 ? '1 event' : `${selectedEventsCount} events`;
+    feeLabel.textContent = `Registration fee (${eventText})`;
+    feeAmount.textContent = `₹${totalFee}`;
+    return totalFee;
+  }
+
   // Validate form and activate submit button
   function checkFormValidity() {
+    const hasName = nameInput.value.trim().length > 0;
     const hasSelectedGrade = selectedGrade !== null;
     const hasSelectedEvent = document.querySelectorAll('.event-check.selected').length > 0;
     
-    submitBtn.disabled = !(hasSelectedGrade && hasSelectedEvent);
+    submitBtn.disabled = !(hasName && hasSelectedGrade && hasSelectedEvent);
   }
+
+  // Handle Async Form Submission (Stops URL Redirect Bug)
+  form.addEventListener('submit', function(e) {
+    e.preventDefault(); // STOP native HTML submit from appending ?name= to URL
+
+    const selectedEvents = Array.from(document.querySelectorAll('.event-check.selected'))
+      .map(el => el.getAttribute('data-event'));
+
+    const calculatedTotal = calculatePricing();
+
+    const payload = {
+      action: "register",
+      name: nameInput.value.trim(),
+      grade: `Grade ${selectedGrade}`,
+      events: selectedEvents.join(', '),
+      totalFee: calculatedTotal,
+      timestamp: new Date().toISOString()
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
+    statusMsg.className = "status-msg";
+    statusMsg.style.display = "none";
+
+    fetch(REGISTRATION_API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(() => {
+      statusMsg.textContent = "Registration successful! See you at FKS Cubing Open 2026.";
+      statusMsg.className = "status-msg success";
+      
+      // Reset Form State
+      form.reset();
+      selectedGrade = null;
+      gradePills.forEach(p => p.classList.remove('selected'));
+      eventChecks.forEach(c => {
+        c.classList.remove('selected');
+        c.classList.remove('disabled');
+      });
+      calculatePricing();
+      checkFormValidity();
+    })
+    .catch(err => {
+      console.error("Registration error:", err);
+      statusMsg.textContent = "There was an error processing your registration. Please try again.";
+      statusMsg.className = "status-msg error";
+    })
+    .finally(() => {
+      submitBtn.textContent = "Submit Registration";
+    });
+  });
 </script>
 
 </body>
