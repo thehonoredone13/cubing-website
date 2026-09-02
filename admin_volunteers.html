@@ -23,6 +23,7 @@
   h1{font-family:'Space Grotesk',sans-serif;font-size:26px;}
   .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
   .back-link:hover{color:var(--ink);}
+
   /* Filter & Controls Bar */
   .filter-card {
     background: #fff;
@@ -104,6 +105,7 @@
     </div>
     <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
   </header>
+
   <!-- Filters & Search -->
   <div class="filter-card">
     <div class="filter-group">
@@ -132,6 +134,7 @@
       <input type="text" id="searchInput" class="filter-control" placeholder="Search name, phone, grade..." oninput="applyFilterAndSort()">
     </div>
   </div>
+
   <div class="actions-bar">
     <button class="btn btn-refresh" onclick="loadVolunteers()">↻ Refresh Volunteers</button>
     <div id="volunteerCount" class="stats-counter">Showing 0 volunteers</div>
@@ -156,16 +159,19 @@
     </table>
   </div>
 </div>
+
 <script>
   const VOLUNTEER_API_URL = "https://script.google.com/macros/s/AKfycbzcYqKBeoI-SlCik2nVTUWZpZAo1VDzKWn495hkntC615xHwuQNv4g8x3B2TbcjGIOj9A/exec";
   let rawVolunteers = [];
+
   function loadVolunteers() {
     const tbody = document.getElementById("volunteerTableBody");
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
+    
     fetch(VOLUNTEER_API_URL)
       .then(res => res.json())
       .then(data => {
-        rawVolunteers = Array.isArray(data) ? data : (data.data || []);
+        rawVolunteers = Array.isArray(data) ? data : (data.volunteers || data.data || []);
         if (rawVolunteers.length === 0) {
           tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No volunteers found.</td></tr>`;
           document.getElementById('volunteerCount').innerText = "Showing 0 volunteers";
@@ -179,6 +185,7 @@
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify VOLUNTEER_API_URL.</td></tr>`;
       });
   }
+
   function populateDropdowns(data) {
     const roleSelect = document.getElementById('roleFilter');
     const scrambleSelect = document.getElementById('scrambleFilter');
@@ -187,13 +194,14 @@
     const currentScramble = scrambleSelect.value;
     const uniqueRoles = new Set();
     const uniqueEvents = new Set();
+
     data.forEach(item => {
-      // A volunteer can now hold both roles ("Scrambling, Judging"), so the
-      // dropdown still offers each individual role, not the combined string.
-      const roleStr = item.role || item.Role || '';
+      // Handles 'roles' (from new Apps Script backend) or 'role' / 'Role'
+      const roleStr = item.roles || item.role || item.Role || '';
       if (roleStr) {
         roleStr.split(',').forEach(r => uniqueRoles.add(r.trim()));
       }
+      
       const eventStr = item.scrambleEvents || item.ScrambleEvents || item.events || item.Events || '';
       if (eventStr) {
         eventStr.split(',').forEach(e => {
@@ -204,42 +212,50 @@
         });
       }
     });
+
     roleSelect.innerHTML = '<option value="ALL">All Roles</option>';
     uniqueRoles.forEach(r => {
       roleSelect.innerHTML += `<option value="${r}">${r}</option>`;
     });
     if ([...uniqueRoles].includes(currentRole)) roleSelect.value = currentRole;
+
     scrambleSelect.innerHTML = '<option value="ALL">All Events / Specialties</option>';
     uniqueEvents.forEach(evt => {
       scrambleSelect.innerHTML += `<option value="${evt}">${evt}</option>`;
     });
     if ([...uniqueEvents].includes(currentScramble)) scrambleSelect.value = currentScramble;
   }
+
   function applyFilterAndSort() {
     const roleFilter = document.getElementById('roleFilter').value;
     const scrambleFilter = document.getElementById('scrambleFilter').value;
     const sortBy = document.getElementById('sortBy').value;
     const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+
     let filtered = rawVolunteers.filter(row => {
-      const role = (row.role || row.Role || '').trim();
+      const role = (row.roles || row.role || row.Role || '').trim();
       const scrambleEvents = (row.scrambleEvents || row.ScrambleEvents || row.events || row.Events || '').trim();
       const name = (row.fullName || row.Name || '').toLowerCase();
       const mobile = String(row.mobileNumber || row.Mobile || row.Phone || '').toLowerCase();
-      const grade = String(row.gradeLevel || row.Grade || row.GradeLevel || '').toLowerCase();
+      const grade = String(row.grade || row.gradeLevel || row.Grade || row.GradeLevel || '').toLowerCase();
+
       const matchRole = (roleFilter === 'ALL') || role.toLowerCase().includes(roleFilter.toLowerCase());
       const matchScramble = (scrambleFilter === 'ALL') || scrambleEvents.toLowerCase().includes(scrambleFilter.toLowerCase());
       const matchSearch = !searchQuery || name.includes(searchQuery) || mobile.includes(searchQuery) || grade.includes(searchQuery);
+
       return matchRole && matchScramble && matchSearch;
     });
+
     filtered.sort((a, b) => {
-      const roleA = (a.role || a.Role || '').toLowerCase();
-      const roleB = (b.role || b.Role || '').toLowerCase();
+      const roleA = (a.roles || a.role || a.Role || '').toLowerCase();
+      const roleB = (b.roles || b.role || b.Role || '').toLowerCase();
       const eventA = (a.scrambleEvents || a.ScrambleEvents || '').toLowerCase();
       const eventB = (b.scrambleEvents || b.ScrambleEvents || '').toLowerCase();
       const nameA = (a.fullName || a.Name || '').toLowerCase();
       const nameB = (b.fullName || b.Name || '').toLowerCase();
-      const gradeA = String(a.gradeLevel || a.Grade || '');
-      const gradeB = String(b.gradeLevel || b.Grade || '');
+      const gradeA = String(a.grade || a.gradeLevel || a.Grade || '');
+      const gradeB = String(b.grade || b.gradeLevel || b.Grade || '');
+
       if (sortBy === 'Role-then-Specialty') {
         const roleCompare = roleA.localeCompare(roleB);
         if (roleCompare !== 0) return roleCompare;
@@ -258,25 +274,26 @@
       }
       return 0;
     });
+
     document.getElementById('volunteerCount').innerText = `Showing ${filtered.length} of ${rawVolunteers.length} volunteers`;
     renderTable(filtered);
   }
+
   function renderTable(records) {
     const tbody = document.getElementById("volunteerTableBody");
     if (records.length === 0) {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching volunteers found.</td></tr>`;
       return;
     }
+
     tbody.innerHTML = records.map(row => {
       const fullName = row.fullName || row.Name || '—';
       const mobileNumber = row.mobileNumber || row.Mobile || row.Phone || '—';
-      const gradeLevel = row.gradeLevel || row.GradeLevel || row.Grade || '—';
-      const role = row.role || row.Role || '—';
+      const gradeLevel = row.grade || row.gradeLevel || row.GradeLevel || row.Grade || '—';
+      const role = row.roles || row.role || row.Role || '—';
       const scrambleEvents = row.scrambleEvents || row.ScrambleEvents || row.events || row.Events || '—';
 
-      // A volunteer can now be both Scrambling and Judging, so Role is rendered
-      // the same way Scramble Events already is: one badge per value, not one
-      // badge holding a comma-joined string.
+      // Renders each role (e.g. Scrambling, Judging) into its own individual badge
       let formattedRole = role;
       if (role !== '—' && role !== '') {
         formattedRole = role.split(',')
@@ -290,9 +307,11 @@
           .map(e => `<span class="badge badge-event">${e.trim()}</span>`)
           .join(" ");
       }
+
       const phoneDisplay = (mobileNumber !== '—' && mobileNumber !== '')
         ? `<a href="tel:${mobileNumber}" class="phone-link">📞 ${mobileNumber}</a>`
         : '—';
+
       return `
         <tr>
           <td><b>${fullName}</b></td>
@@ -304,6 +323,7 @@
       `;
     }).join("");
   }
+
   document.addEventListener("DOMContentLoaded", loadVolunteers);
 </script>
 </body>
