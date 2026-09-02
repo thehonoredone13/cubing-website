@@ -47,7 +47,6 @@
   }
   .field input[type=text]:focus, .field input[type=tel]:focus{border-color:var(--ink);}
 
-  /* Grade Radio & Role Checkbox Styling */
   .grade-options, .role-options{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
   .role-options{grid-template-columns:repeat(2,1fr);}
   @media(max-width:520px){
@@ -63,7 +62,6 @@
   .radio-pill.selected{border-color:var(--ink);background:var(--paper-dim);}
   .radio-pill.disabled{opacity:0.4;cursor:not-allowed;background:var(--paper);border-color:var(--line);}
 
-  /* Event / Cube Checkboxes Styling */
   .cube-options{display:grid;grid-template-columns:repeat(2, 1fr);gap:10px;}
   @media(max-width:520px){.cube-options{grid-template-columns:1fr;}}
   
@@ -74,7 +72,8 @@
   }
   .event-check input[type=checkbox]{display:none;}
   .event-check.selected{border-color:var(--e-color,var(--ink));background:var(--paper-dim);}
-  .event-dot{width:12px;height:12px;border-radius:4px;background:var(--e-color,var(--ink));flex-shrink:0;}
+  .event-dot{width:10px;height:10px;border-radius:3px;background:var(--e-color,var(--ink));flex-shrink:0;}
+  .wca-icon{width:22px;height:22px;fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
   .event-check .name{font-weight:600;font-size:14px;flex:1;}
   .event-check .check-icon{
     width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);flex-shrink:0;
@@ -87,7 +86,6 @@
     content:'✓';color:#fff;font-size:12px;font-weight:700;
   }
 
-  /* Dynamic Sections */
   #scrambleSection{
     display:none;
     margin-top:22px;
@@ -115,7 +113,7 @@
 <nav>
   <div class="nav-inner">
     <a href="#" class="logo">
-      <img src="FKS Logo.png" class="logo-mark">
+      <img src="FKS Logo.png" class="logo-mark" alt="FKS Logo">
       <span>FKS Cubing Open 2026</span>
     </a>
     <div class="nav-links">
@@ -155,7 +153,7 @@
           <div class="hint">Used for event WhatsApp updates &amp; coordination on competition day.</div>
         </div>
 
-        <!-- Grade Options (Radio Pills) -->
+        <!-- Grade Options -->
         <div class="field">
           <label>Grade Level</label>
           <div class="grade-options">
@@ -178,7 +176,7 @@
           </div>
         </div>
 
-        <!-- Role Selection (Checkboxes for Multiple Selection) -->
+        <!-- Volunteer Role Selection -->
         <div class="field">
           <label>Volunteer Role(s)</label>
           <div class="role-options">
@@ -194,48 +192,53 @@
           <div class="hint" id="roleHint">Select your grade level to see available roles.</div>
         </div>
 
-        <!-- Conditional Scrambling Cubes Section -->
+        <!-- Conditional Scrambling Section -->
         <div class="field" id="scrambleSection">
-          <label>Cubes You Are Comfortable Scrambling</label>
+          <label>Events You Are Comfortable Scrambling</label>
           <div class="cube-options">
             
             <label class="event-check" style="--e-color: var(--cube-red);">
-              <input type="checkbox" name="cubes" value="3x3">
+              <input type="checkbox" name="scrambleEvents" value="3x3 Cube">
               <span class="event-dot"></span>
-              <span class="name">3x3x3 Cube</span>
+              <svg class="wca-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+              <span class="name">3x3 Cube</span>
               <span class="check-icon"></span>
             </label>
 
             <label class="event-check" style="--e-color: var(--cube-yellow);">
-              <input type="checkbox" name="cubes" value="2x2">
+              <input type="checkbox" name="scrambleEvents" value="2x2 Cube">
               <span class="event-dot"></span>
-              <span class="name">2x2x2 Cube</span>
+              <svg class="wca-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+              <span class="name">2x2 Cube</span>
               <span class="check-icon"></span>
             </label>
 
             <label class="event-check" style="--e-color: var(--cube-blue);">
-              <input type="checkbox" name="cubes" value="Pyraminx">
+              <input type="checkbox" name="scrambleEvents" value="Pyraminx">
               <span class="event-dot"></span>
+              <svg class="wca-icon" viewBox="0 0 24 24"><polygon points="12,3 2,20 22,20"/><line x1="12" y1="3" x2="12" y2="20"/><line x1="7" y1="11.5" x2="17" y2="11.5"/></svg>
               <span class="name">Pyraminx</span>
               <span class="check-icon"></span>
             </label>
 
             <label class="event-check" style="--e-color: var(--cube-green);">
-              <input type="checkbox" name="cubes" value="Megaminx">
+              <input type="checkbox" name="scrambleEvents" value="Megaminx">
               <span class="event-dot"></span>
+              <svg class="wca-icon" viewBox="0 0 24 24"><polygon points="12,2 21,9 18,19 6,19 3,9"/><polygon points="12,7 16,10 14,15 10,15 8,10"/></svg>
               <span class="name">Megaminx</span>
               <span class="check-icon"></span>
             </label>
 
             <label class="event-check" style="--e-color: var(--ink);">
-              <input type="checkbox" name="cubes" value="4x4">
+              <input type="checkbox" name="scrambleEvents" value="4x4 Cube">
               <span class="event-dot"></span>
-              <span class="name">4x4x4 Cube</span>
+              <svg class="wca-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7.5" y1="3" x2="7.5" y2="21"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="16.5" y1="3" x2="16.5" y2="21"/><line x1="3" y1="7.5" x2="21" y2="7.5"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="16.5" x2="21" y2="16.5"/></svg>
+              <span class="name">4x4 Cube</span>
               <span class="check-icon"></span>
             </label>
 
           </div>
-          <div class="hint">Select all puzzle types you are confident scrambling correctly.</div>
+          <div class="hint">Select all puzzle types you are comfortable scrambling correctly.</div>
         </div>
 
         <!-- Submit Button -->
@@ -269,35 +272,28 @@
   const scramblePill = document.getElementById('scramblePill');
   const scrambleInput = scramblePill.querySelector('input');
   const roleHint = document.getElementById('roleHint');
+
   const scrambleSection = document.getElementById('scrambleSection');
-  const cubeCheckboxes = document.querySelectorAll('input[name="cubes"]');
+  const scrambleCheckboxes = document.querySelectorAll('input[name="scrambleEvents"]');
   const submitBtn = document.getElementById('submitBtn');
 
-  function updateGradePills() {
+  function updatePills() {
     gradeInputs.forEach(input => {
       const pill = input.closest('.radio-pill');
-      if (input.checked) {
-        pill.classList.add('selected');
-      } else {
-        pill.classList.remove('selected');
-      }
+      if (input.checked) pill.classList.add('selected');
+      else pill.classList.remove('selected');
     });
-  }
 
-  function updateRolePills() {
     roleCheckboxes.forEach(input => {
       const pill = input.closest('.radio-pill');
-      if (input.checked) {
-        pill.classList.add('selected');
-      } else {
-        pill.classList.remove('selected');
-      }
+      if (input.checked) pill.classList.add('selected');
+      else pill.classList.remove('selected');
     });
   }
 
   gradeInputs.forEach(input => {
     input.addEventListener('change', (e) => {
-      updateGradePills();
+      updatePills();
       const selectedGrade = e.target.value;
 
       if (selectedGrade === '6th' || selectedGrade === '7th') {
@@ -306,24 +302,23 @@
         judgeInput.checked = false;
         roleHint.innerText = 'Grades 6 and 7 are limited to Scrambling only.';
 
-        // Ensure scrambling is selected if judging was cleared
         if (!scrambleInput.checked) {
           scrambleInput.checked = true;
         }
       } else {
         judgePill.classList.remove('disabled');
         judgeInput.disabled = false;
-        roleHint.innerText = 'You can select one or both volunteer roles.';
+        roleHint.innerText = 'Grades 8 and 9 can select Scrambling, Judging, or both.';
       }
 
-      updateRolePills();
+      updatePills();
       toggleScrambleSection();
     });
   });
 
   roleCheckboxes.forEach(input => {
     input.addEventListener('change', () => {
-      updateRolePills();
+      updatePills();
       toggleScrambleSection();
     });
   });
@@ -333,21 +328,18 @@
       scrambleSection.style.display = 'block';
     } else {
       scrambleSection.style.display = 'none';
-      cubeCheckboxes.forEach(cb => {
+      scrambleCheckboxes.forEach(cb => {
         cb.checked = false;
         cb.closest('.event-check').classList.remove('selected');
       });
     }
   }
 
-  cubeCheckboxes.forEach(checkbox => {
+  document.querySelectorAll('.event-check input[type="checkbox"]').forEach(checkbox => {
     checkbox.addEventListener('change', (e) => {
       const parentLabel = e.target.closest('.event-check');
-      if (e.target.checked) {
-        parentLabel.classList.add('selected');
-      } else {
-        parentLabel.classList.remove('selected');
-      }
+      if (e.target.checked) parentLabel.classList.add('selected');
+      else parentLabel.classList.remove('selected');
     });
   });
 
@@ -355,7 +347,6 @@
     e.preventDefault();
     const statusMsg = document.getElementById('statusMsg');
 
-    // Validation: Ensure at least one role is selected
     const selectedRoles = document.querySelectorAll('input[name="role"]:checked');
     if (selectedRoles.length === 0) {
       statusMsg.className = 'status-msg error';
@@ -364,12 +355,11 @@
       return;
     }
 
-    // Validation: If scrambling is chosen, ensure at least one cube is selected
     if (scrambleInput.checked) {
-      const selectedCubes = document.querySelectorAll('input[name="cubes"]:checked');
-      if (selectedCubes.length === 0) {
+      const selectedScrambleEvents = document.querySelectorAll('input[name="scrambleEvents"]:checked');
+      if (selectedScrambleEvents.length === 0) {
         statusMsg.className = 'status-msg error';
-        statusMsg.innerText = 'Please select at least one cube type you are comfortable scrambling.';
+        statusMsg.innerText = 'Please select at least one event you are comfortable scrambling.';
         statusMsg.style.display = 'block';
         return;
       }
