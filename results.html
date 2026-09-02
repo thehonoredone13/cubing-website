@@ -25,7 +25,7 @@
   a{color:inherit;text-decoration:none;}
   .wrap{max-width:1120px;margin:0 auto;padding:0 28px;}
 
-/* ---------- NAV ---------- */
+  /* ---------- NAV ---------- */
   nav{
     position:sticky;top:0;z-index:50;
     background:rgba(246,244,239,0.9);
@@ -61,6 +61,7 @@
   .btn-solid-red:hover{box-shadow:0 6px 16px rgba(230,64,42,0.35);}
   .nav-cta{display:flex;gap:10px;align-items:center;}
   .results-caret{font-size:11px;opacity:.6;margin-left:2px;}
+  
   /* ---------- PAGE HEADER ---------- */
   .page-header{
     background:radial-gradient(120% 140% at 15% 0%, #202749 0%, var(--ink) 55%, #0C1022 100%);
@@ -90,6 +91,7 @@
   }
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--cube-red);animation:pulse 1.4s infinite;}
   @keyframes pulse{0%{opacity:1;}50%{opacity:0.3;}100%{opacity:1;}}
+  
   /* ---------- ROUND TABS ---------- */
   .results-section{padding:40px 0 24px;}
   .age-group-tabs{display:flex;gap:8px;margin-bottom:14px;}
@@ -108,6 +110,7 @@
   .round-tab.active::after{
     content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--cube-red);
   }
+  
   /* ---------- TABLE ---------- */
   .results-table-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;}
   table{width:100%;border-collapse:collapse;font-size:14px;}
@@ -132,6 +135,7 @@
   .medal.bronze{background:#A6643A;}
   .grade-tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);margin-left:6px;}
   .empty-msg{padding:24px;text-align:center;color:var(--text-dim);font-size:14px;}
+  
   /* ---------- KNOCKOUT BRACKET ---------- */
   .bracket-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;padding:32px 24px;overflow-x:auto;}
   .bracket{display:flex;gap:40px;min-width:740px;align-items:center;}
@@ -164,7 +168,7 @@
 <nav>
   <div class="nav-inner">
     <div class="logo">
-      <img class="logo-mark" src="FKS Logo.png">
+      <img class="logo-mark" src="FKS Logo.png" alt="FKS Logo">
       FKS Cubing Open
     </div>
     <div class="nav-links">
@@ -180,6 +184,7 @@
     </div>
   </div>
 </nav>
+
 <div class="page-header">
   <div class="wrap">
     <div class="header-row">
@@ -200,25 +205,18 @@
     </div>
   </div>
 </div>
+
 <div class="wrap results-section">
   <div class="age-group-tabs" id="ageGroupTabsContainer">
-    <!-- Dynamically populated age-group tabs (only shown for events open to both age groups) -->
+    <!-- Dynamically populated age-group tabs -->
   </div>
   <div class="round-tabs" id="roundTabsContainer">
     <!-- Dynamically populated round tabs -->
   </div>
   <div class="results-table-wrap" id="resultsTableWrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Rank</th>
-          <th>Competitor</th>
-          <th class="num">Solve 1</th>
-          <th class="num">Solve 2</th>
-          <th class="num">Solve 3</th>
-          <th class="num">Average</th>
-          <th class="num">Best</th>
-        </tr>
+    <table id="resultsTable">
+      <thead id="resultsTableHead">
+        <!-- Dynamically rendered table headers -->
       </thead>
       <tbody id="resultsTableBody">
         <tr><td colspan="7" class="empty-msg">Loading live results...</td></tr>
@@ -229,14 +227,17 @@
     <div id="bracket"></div>
   </div>
 </div>
+
 <footer>
   <div class="wrap">
     <div>&copy; 2026 FKS Cubing Open. All rights reserved.</div>
   </div>
 </footer>
+
 <script>
   // DEPLOYED GOOGLE APPS SCRIPT WEB APP URL
   const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec";
+  
   const EVENT_ROUNDS = {
     "3x3": ["First Round", "Second Round", "Final"],
     "2x2": ["First Round", "Second Round", "Final"],
@@ -244,13 +245,10 @@
     "Megaminx": ["Final"],
     "4x4": ["Final"]
   };
-  // Events whose Final round is run as a single-elimination knockout
+  
   const KNOCKOUT_EVENTS = ["3x3", "2x2"];
   const KNOCKOUT_ROUND_NAME = "Final";
 
-  // Grades 6 & 7 don't run Megaminx or 4x4 (only Grades 8 & 9 do), so those two
-  // events only ever have one age group. Everywhere else both groups compete and
-  // are ranked/bracketed separately.
   const AGE_GROUP_EVENTS = {
     "3x3": ["6-7", "8-9"],
     "2x2": ["6-7", "8-9"],
@@ -258,16 +256,17 @@
     "Megaminx": ["8-9"],
     "4x4": ["8-9"]
   };
+  
   const AGE_GROUP_GRADES = {
     "6-7": ["Grade 6", "Grade 7"],
     "8-9": ["Grade 8", "Grade 9"]
   };
+  
   const AGE_GROUP_LABELS = {
     "6-7": "Grades 6–7",
     "8-9": "Grades 8–9"
   };
-  // Grades 6–7 field fewer competitors, so their Final runs a 4-person bracket
-  // (Semifinals → Championship) instead of the 8-person Quarterfinal-onward one.
+  
   const BRACKET_SIZE = { "6-7": 4, "8-9": 8 };
 
   let allResultsData = [];
@@ -289,16 +288,13 @@
 
   function switchEvent(eventName) {
     currentEvent = eventName;
-    currentRound = EVENT_ROUNDS[eventName][0]; // Reset to first available round
+    currentRound = EVENT_ROUNDS[eventName][0];
 
-    // Megaminx/4x4 only have a Grades 8–9 group — if we were showing 6–7, fall
-    // back to whichever group this event actually has.
     const groupsHere = AGE_GROUP_EVENTS[eventName] || ["8-9"];
     if (!groupsHere.includes(currentAgeGroup)) {
       currentAgeGroup = groupsHere[0];
     }
 
-    // Update active pill UI
     document.querySelectorAll(".event-pill").forEach(btn => {
       btn.classList.toggle("current", btn.innerText.trim() === eventName);
     });
@@ -322,7 +318,6 @@
     renderTableAndStatus();
   }
 
-  // Only shown for events both age groups actually compete in (not Megaminx/4x4).
   function renderAgeGroupTabs() {
     const container = document.getElementById("ageGroupTabsContainer");
     const groups = AGE_GROUP_EVENTS[currentEvent] || ["8-9"];
@@ -337,14 +332,12 @@
     `).join("");
   }
 
-  // ---------- Header (badge + title) ----------
   function updateHeader(eventName) {
     document.getElementById("currentBadge").innerHTML = getEventIcon(eventName);
     const isCube = (eventName === "2x2" || eventName === "3x3" || eventName === "4x4");
     document.getElementById("currentTitle").childNodes[0].nodeValue = `${eventName}${isCube ? " Cube" : ""} `;
   }
 
-  // Returns an inline SVG representing the puzzle's shape for the given event
   function getEventIcon(eventName) {
     switch (eventName) {
       case "2x2": return gridIcon(2);
@@ -371,7 +364,6 @@
   }
 
   function pyraminxIcon() {
-    // Equilateral triangle (tetrahedron face) subdivided into 4 smaller triangles
     return `<svg width="34" height="34" viewBox="0 0 34 34" fill="none">
       <polygon points="17,4 30,28 4,28" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
       <line x1="10.5" y1="16" x2="23.5" y2="16" stroke="#fff" stroke-width="1.2"/>
@@ -381,7 +373,6 @@
   }
 
   function megaminxIcon() {
-    // Regular pentagon (dodecahedron face) with an inset pentagon
     return `<svg width="34" height="34" viewBox="0 0 34 34" fill="none">
       <polygon points="17,4 29.36,12.98 24.64,27.52 9.36,27.52 4.64,12.98" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
       <polygon points="17,10.5 23.18,14.99 20.82,22.26 13.18,22.26 10.82,14.99" stroke="#fff" stroke-width="1.1"/>
@@ -402,21 +393,64 @@
     return KNOCKOUT_EVENTS.includes(currentEvent) && currentRound === KNOCKOUT_ROUND_NAME;
   }
 
+  function deduplicateEntries(rows) {
+    const uniqueMap = new Map();
+    rows.forEach(r => {
+      const key = (r.CompetitorID || r.Name || "").toString().trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, r);
+      } else {
+        const existing = uniqueMap.get(key);
+        const rRank = parseInt(r.Rank) || 999;
+        const exRank = parseInt(existing.Rank) || 999;
+        if (rRank < exRank) {
+          uniqueMap.set(key, r);
+        }
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }
+
   function renderTableAndStatus() {
     const statusContainer = document.getElementById("liveStatusContainer");
     const tableWrap = document.getElementById("resultsTableWrap");
     const bracketWrap = document.getElementById("bracketWrap");
+    const thead = document.getElementById("resultsTableHead");
 
-    // Filter results matching current Event, Round and age group. Knockout matches
-    // are tagged "Final — <Age Group> — <Match Name>" (e.g. "Final — 6-7 — Semifinal 1"),
-    // so match on that prefix; non-knockout rounds just filter by each row's Grade.
+    const isTwoSolveEvent = (currentEvent === "Megaminx" || currentEvent === "4x4");
+
+    if (isTwoSolveEvent) {
+      thead.innerHTML = `
+        <tr>
+          <th>Rank</th>
+          <th>Competitor</th>
+          <th class="num">Solve 1</th>
+          <th class="num">Solve 2</th>
+          <th class="num">Best</th>
+        </tr>
+      `;
+    } else {
+      thead.innerHTML = `
+        <tr>
+          <th>Rank</th>
+          <th>Competitor</th>
+          <th class="num">Solve 1</th>
+          <th class="num">Solve 2</th>
+          <th class="num">Solve 3</th>
+          <th class="num">Average</th>
+          <th class="num">Best</th>
+        </tr>
+      `;
+    }
+
     const groupGrades = AGE_GROUP_GRADES[currentAgeGroup] || [];
     const knockoutPrefix = `${currentRound} — ${currentAgeGroup} — `;
-    const filtered = isKnockoutView()
+    const rawFiltered = isKnockoutView()
       ? allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(knockoutPrefix) === 0)
       : allResultsData.filter(r => r.Event === currentEvent && r.Round === currentRound && groupGrades.includes(r.Grade));
 
-    // Update Live / Complete Badge Status based on latest submission
+    const filtered = deduplicateEntries(rawFiltered);
+
     if (filtered.length > 0) {
       const isLive = filtered.some(r => r.Status === "Live");
       statusContainer.innerHTML = isLive ? `<span class="live-badge"><span class="live-dot"></span>LIVE</span>` : '';
@@ -435,19 +469,44 @@
     bracketWrap.style.display = "none";
 
     const tbody = document.getElementById("resultsTableBody");
+    const colSpanCount = isTwoSolveEvent ? 5 : 7;
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-msg">No results submitted for this round yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${colSpanCount}" class="empty-msg">No results submitted for this round yet.</td></tr>`;
       return;
     }
-    // Sort entries by Rank (asc)
-    filtered.sort((a, b) => (parseInt(a.Rank) || 999) - (parseInt(b.Rank) || 999));
-    tbody.innerHTML = filtered.map(row => {
-      const rankInt = parseInt(row.Rank);
+    
+    filtered.sort((a, b) => {
+      if (isTwoSolveEvent) {
+        const aBest = parseTime(a.Best);
+        const bBest = parseTime(b.Best);
+        if (aBest !== bBest) return aBest - bBest;
+      }
+      return (parseInt(a.Rank) || 999) - (parseInt(b.Rank) || 999);
+    });
+
+    tbody.innerHTML = filtered.map((row, idx) => {
+      const rankInt = idx + 1;
       let podiumClass = rankInt <= 3 ? "podium" : "";
       let medalHtml = "";
       if (rankInt === 1) medalHtml = `<span class="medal gold">1</span>`;
       else if (rankInt === 2) medalHtml = `<span class="medal silver">2</span>`;
       else if (rankInt === 3) medalHtml = `<span class="medal bronze">3</span>`;
+      
+      if (isTwoSolveEvent) {
+        return `
+          <tr class="${podiumClass}">
+            <td class="rank-cell">${medalHtml ? medalHtml : rankInt}</td>
+            <td>
+              <strong>${row.Name}</strong>
+              ${row.Grade ? `<span class="grade-tag">(${row.Grade})</span>` : ''}
+            </td>
+            <td class="num">${row.Solve1 || '-'}</td>
+            <td class="num">${row.Solve2 || '-'}</td>
+            <td class="num best">${row.Best || '-'}</td>
+          </tr>
+        `;
+      }
+
       return `
         <tr class="${podiumClass}">
           <td class="rank-cell">${medalHtml ? medalHtml : (row.Rank || '-')}</td>
@@ -455,20 +514,16 @@
             <strong>${row.Name}</strong>
             ${row.Grade ? `<span class="grade-tag">(${row.Grade})</span>` : ''}
           </td>
-          <td class="num">${row.Solve1}</td>
-          <td class="num">${row.Solve2}</td>
-          <td class="num">${row.Solve3}</td>
-          <td class="num best">${row.Average}</td>
-          <td class="num">${row.Best}</td>
+          <td class="num">${row.Solve1 || '-'}</td>
+          <td class="num">${row.Solve2 || '-'}</td>
+          <td class="num">${row.Solve3 || '-'}</td>
+          <td class="num best">${row.Average || '-'}</td>
+          <td class="num">${row.Best || '-'}</td>
         </tr>
       `;
     }).join("");
   }
 
-  // ---------- Knockout bracket (8-person single elimination) ----------
-
-  // Parses a solve/average time string into seconds for comparison.
-  // Lower is better; DNF/DNS/blank sorts last.
   function parseTime(str) {
     if (str === undefined || str === null) return Infinity;
     const s = String(str).trim().toUpperCase();
@@ -477,10 +532,6 @@
     return isNaN(v) ? Infinity : v;
   }
 
-  // Head-to-head match resolver: every knockout match is a real 1v1, not a single
-  // number comparison. It's best-of-3 on the recorded solves (first to 2 solve-wins
-  // takes the match); if that's still level it keeps going down a tiebreak ladder
-  // (Average, then single best solve, then seed) so a winner is always found.
   function headToHead(a, b) {
     const aTimes = [parseTime(a.Solve1), parseTime(a.Solve2), parseTime(a.Solve3)];
     const bTimes = [parseTime(b.Solve1), parseTime(b.Solve2), parseTime(b.Solve3)];
@@ -500,12 +551,7 @@
     if (aBest !== bBest) {
       return { winner: aBest < bBest ? a : b, decidedBy: "Best solve (tiebreak)" };
     }
-    // Every recorded number is dead-even — fall back to seed so the match still resolves.
     return { winner: a, decidedBy: "Seed (dead tie)" };
-  }
-
-  function decideWinner(a, b) {
-    return headToHead(a, b).winner;
   }
 
   function matchSlotHtml(p, opp, winner) {
@@ -534,36 +580,24 @@
     </div>`;
   }
 
-  // Fixed bracket slots. Each corresponds to the "Knockout Match" chosen on the
-  // admin entry form — the Round field for a knockout row arrives as
-  // "Final — <one of these>", so results for a given match are just whatever rows
-  // carry that exact tag (normally two: the two competitors who played it).
   const QF_STAGES = ["Quarterfinal 1", "Quarterfinal 2", "Quarterfinal 3", "Quarterfinal 4"];
   const SF_STAGES = ["Semifinal 1", "Semifinal 2"];
   const FINAL_STAGE = "Championship";
   const BRONZE_STAGE = "3rd Place Match";
 
-  // Groups tagged knockout rows by their match stage. If a competitor was
-  // resubmitted (a correction), the latest row for that person in a stage wins.
   function groupByStage(rows) {
     const map = {};
     rows.forEach(r => {
-      // Stage name is always the last "<...> — " segment, whether the tag is the
-      // older 2-part form ("Final — Quarterfinal 1") or the age-group-aware 3-part
-      // form ("Final — 6-7 — Quarterfinal 1") — rows here are already scoped to one
-      // event/round/age-group prefix, so this is unambiguous.
       const sepIdx = r.Round.lastIndexOf(" — ");
       if (sepIdx === -1) return;
       const stage = r.Round.slice(sepIdx + 3);
       if (!map[stage]) map[stage] = {};
       const key = r.CompetitorID || r.Name;
-      map[stage][key] = r; // later rows overwrite earlier ones for the same person
+      map[stage][key] = r;
     });
     return map;
   }
 
-  // Resolves what we currently know about one match: both competitors in (complete),
-  // only one submitted so far (pending), or nothing yet (empty).
   function matchForStage(stageMap, stageName) {
     const entries = stageMap[stageName] ? Object.values(stageMap[stageName]) : [];
     if (entries.length >= 2) return { state: "complete", a: entries[0], b: entries[1] };
@@ -586,8 +620,6 @@
     </div>`;
   }
 
-  // Renders one bracket slot's card from its match state — complete, pending
-  // (only one competitor entered), or empty (nothing entered yet).
   function stageCardHtml(match) {
     if (match.state === "complete") return matchCardHtml([match.a, match.b]);
     if (match.state === "pending") {
@@ -600,8 +632,6 @@
     const wrap = document.getElementById("bracket");
     const stageMap = groupByStage(data);
     const bracketSize = BRACKET_SIZE[ageGroup] || 8;
-    // Grades 6–7 run a 4-person bracket — Quarterfinals don't exist for them, so
-    // that column (and its stage tags) is skipped entirely.
     const useQuarters = bracketSize > 4;
 
     const hasAnyStageData = Object.keys(stageMap).length > 0;
@@ -649,7 +679,7 @@
     `;
   }
 
-  // Initial load and auto-refresh every 15 seconds
+  // Initial load and 2-second auto-polling refresh
   document.addEventListener("DOMContentLoaded", () => {
     fetchResults();
     setInterval(fetchResults, 2000);
