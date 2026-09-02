@@ -169,12 +169,17 @@
 </footer>
 
 <script>
-  // DEPLOYED GOOGLE APPS SCRIPT WEB APP URL FOR REGISTRATIONS
   const REGISTRATION_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec";
 
-  // Fee configuration: ₹150 for base event, ₹100 for each additional event
-  const BASE_FEE = 150;
-  const EXTRA_EVENT_FEE = 100;
+  // Tiered pricing map according to event selection count
+  const PRICING_TIERS = {
+    0: 0,
+    1: 100,
+    2: 200,
+    3: 250,
+    4: 300,
+    5: 350
+  };
 
   let selectedGrade = null;
   const form = document.getElementById('reg-form');
@@ -186,10 +191,8 @@
   const feeAmount = document.getElementById('fee-amount');
   const statusMsg = document.getElementById('status-msg');
 
-  // Input Name Listener
   nameInput.addEventListener('input', checkFormValidity);
 
-  // Grade Selection Logic
   gradePills.forEach(pill => {
     pill.addEventListener('click', () => {
       gradePills.forEach(p => p.classList.remove('selected'));
@@ -202,7 +205,6 @@
     });
   });
 
-  // Event Selection Logic
   eventChecks.forEach(check => {
     check.addEventListener('click', () => {
       if (check.classList.contains('disabled')) return;
@@ -213,7 +215,6 @@
     });
   });
 
-  // Restrict events based on selected grade
   function updateEventRestrictions() {
     eventChecks.forEach(check => {
       const eventType = check.getAttribute('data-event');
@@ -221,7 +222,7 @@
       if (eventType === 'megaminx' || eventType === '4x4') {
         if (selectedGrade === '6' || selectedGrade === '7') {
           check.classList.add('disabled');
-          check.classList.remove('selected'); // Auto-uncheck if previously selected
+          check.classList.remove('selected');
         } else {
           check.classList.remove('disabled');
         }
@@ -229,7 +230,6 @@
     });
   }
 
-  // Calculate & Display Fee Breakdown
   function calculatePricing() {
     const selectedEventsCount = document.querySelectorAll('.event-check.selected').length;
 
@@ -239,14 +239,14 @@
       return 0;
     }
 
-    const totalFee = BASE_FEE + ((selectedEventsCount - 1) * EXTRA_EVENT_FEE);
+    const totalFee = PRICING_TIERS[selectedEventsCount] || 0;
     const eventText = selectedEventsCount === 1 ? '1 event' : `${selectedEventsCount} events`;
+    
     feeLabel.textContent = `Registration fee (${eventText})`;
     feeAmount.textContent = `₹${totalFee}`;
     return totalFee;
   }
 
-  // Validate form and activate submit button
   function checkFormValidity() {
     const hasName = nameInput.value.trim().length > 0;
     const hasSelectedGrade = selectedGrade !== null;
@@ -255,9 +255,8 @@
     submitBtn.disabled = !(hasName && hasSelectedGrade && hasSelectedEvent);
   }
 
-  // Handle Async Form Submission (Stops URL Redirect Bug)
   form.addEventListener('submit', function(e) {
-    e.preventDefault(); // STOP native HTML submit from appending ?name= to URL
+    e.preventDefault();
 
     const selectedEvents = Array.from(document.querySelectorAll('.event-check.selected'))
       .map(el => el.getAttribute('data-event'));
@@ -290,7 +289,6 @@
       statusMsg.textContent = "Registration successful! See you at FKS Cubing Open 2026.";
       statusMsg.className = "status-msg success";
       
-      // Reset Form State
       form.reset();
       selectedGrade = null;
       gradePills.forEach(p => p.classList.remove('selected'));
