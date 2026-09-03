@@ -262,26 +262,37 @@
   },
   body: JSON.stringify(payload)
 })
-.then(res => res.json()) // Parse the returned JSON from Google Apps Script
-.then(data => {
-  // Read the 'id' property from the response object
-  const registrationId = data.id || "N/A";
+.then(res => res.json())
+    .then(data => {
+      // 1. Check for Duplicate Registration
+      if (data.duplicate) {
+        statusMsg.textContent = data.error;
+        statusMsg.className = "status-msg error";
+        statusMsg.style.display = "block";
+      } 
+      // 2. Successful Registration
+      else if (data.success || data.status === "success") {
+        const registrationId = data.id || data.username || "N/A";
 
-  // Display the success message with the ID formatted in bold
-  statusMsg.innerHTML = `Registration submitted successfully! Your Registration ID is <strong>${registrationId}</strong>. See you at FKS Cubing Open 2026.`;
-  statusMsg.className = "status-msg success";
-  statusMsg.style.display = "block";
+        statusMsg.innerHTML = `Registration submitted successfully! Your Registration ID is <strong>${registrationId}</strong>. See you at FKS Cubing Open 2026.`;
+        statusMsg.className = "status-msg success";
+        statusMsg.style.display = "block";
 
-  // Reset form inputs & UI state
-  form.reset();
-  selectedGrade = null;
-  gradePills.forEach(p => p.classList.remove('selected'));
-  eventChecks.forEach(c => {
-    c.classList.remove('selected');
-    c.classList.remove('disabled');
-  });
-  updateFeeSummary(0);
-})
+        // Clear form state
+        form.reset();
+        selectedGrade = null;
+        gradePills.forEach(p => p.classList.remove('selected'));
+        eventChecks.forEach(c => {
+          c.classList.remove('selected');
+          c.classList.remove('disabled');
+        });
+        updateFeeSummary(0);
+      } 
+      // 3. Other Errors
+      else {
+        throw new Error(data.error || "Submission failed");
+      }
+    })
 .catch(err => {
   console.error("Registration error:", err);
   statusMsg.textContent = "There was an error submitting your registration. Please try again.";
