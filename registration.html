@@ -17,7 +17,6 @@
   a{color:inherit;text-decoration:none;}
   img{max-width:100%;display:block;}
   .wrap{max-width:720px;margin:0 auto;padding:0 28px;}
-
   nav{position:sticky;top:0;z-index:50;background:rgba(246,244,239,0.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
   .nav-inner{max-width:1120px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;}
   .logo{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.01em;}
@@ -31,13 +30,11 @@
   .btn-solid-red:hover{box-shadow:0 6px 16px rgba(230,64,42,0.35);}
   .btn-solid-red:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none;}
   @media(max-width:640px){.nav-links{display:none;}}
-
   .page-header{background:radial-gradient(120% 140% at 15% 0%, #202749 0%, var(--ink) 55%, #0C1022 100%);color:var(--paper);padding:52px 0 40px;text-align:center;}
   .eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--cube-yellow);border:1px solid rgba(242,183,5,0.4);padding:6px 14px;border-radius:999px;margin-bottom:20px;}
   .eyebrow-dot{width:6px;height:6px;border-radius:50%;background:var(--cube-red);}
   .page-header h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(30px,5vw,44px);letter-spacing:-0.02em;margin-bottom:12px;}
   .page-header p{color:rgba(246,244,239,0.7);font-size:15px;}
-
   .form-section{padding:48px 0 24px;}
   .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px;}
   .field{margin-bottom:22px;}
@@ -52,7 +49,6 @@
     cursor:pointer;transition:border-color .15s ease, background .15s ease;
   }
   .radio-pill.selected{border-color:var(--ink);background:var(--paper-dim);}
-
   .event-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   @media(max-width:520px){.event-options{grid-template-columns:1fr;}}
   .event-check{
@@ -65,22 +61,18 @@
   .event-check .name{font-weight:600;font-size:14px;flex:1;}
   .event-check .check-icon{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);flex-shrink:0;}
   .event-check.selected .check-icon{background:var(--e-color,var(--ink));border-color:var(--e-color,var(--ink));}
-
   .fee-summary{
     display:flex;align-items:center;justify-content:space-between;background:var(--paper-dim);border-radius:12px;padding:16px 18px;margin-top:6px;
   }
   .fee-summary .label{font-size:13.5px;color:var(--text-dim);}
   .fee-summary .amount{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;}
-
+  .fee-tiers{font-size:12px;color:var(--text-dim);margin-top:8px;line-height:1.5;}
   .submit-row{margin-top:24px;}
   .submit-row .btn{width:100%;justify-content:center;padding:13px;font-size:15px;}
-
   .status-msg{margin-top:16px;font-size:13.5px;padding:12px 14px;border-radius:10px;display:none;}
   .status-msg.success{display:block;background:rgba(30,142,90,0.1);color:var(--cube-green);}
   .status-msg.error{display:block;background:rgba(230,64,42,0.1);color:var(--cube-red);}
-
   .hint{font-size:12.5px;color:var(--text-dim);margin-top:6px;}
-
   footer{background:var(--ink);color:rgba(246,244,239,0.65);padding:40px 0;font-size:13px;}
   .footer-inner{max-width:1120px;margin:0 auto;padding:0 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   footer .logo{color:var(--paper);}
@@ -88,7 +80,6 @@
 </style>
 </head>
 <body>
-
 <nav>
   <div class="nav-inner">
     <a href="#" class="logo">
@@ -100,14 +91,12 @@
     </div>
   </div>
 </nav>
-
 <header class="page-header">
   <div class="eyebrow"><span class="eyebrow-dot"></span> Saturday, October 3, 2026</div>
   <h1>Register</h1>
   <p>Pick a grade, choose your events, and you're in. Fees adjust automatically below.<br>
   Please also feel free to volunteer to make this event a sucess.</p>
 </header>
-
 <section class="form-section wrap">
   <div class="card">
     <form id="reg-form">
@@ -115,7 +104,6 @@
         <label for="name">Full Name</label>
         <input type="text" id="name" name="name" placeholder="e.g. Aarav Mehta" required>
       </div>
-
       <div class="field">
         <label>Grade</label>
         <div class="grade-options" id="grade-options">
@@ -126,7 +114,6 @@
         </div>
         <div class="hint">Megaminx and 4x4 are only open to Grades 8 &amp; 9.</div>
       </div>
-
       <div class="field">
         <label>Events</label>
         <div class="event-options" id="event-options">
@@ -147,32 +134,36 @@
            </div>
         </div>
       </div>
-
       <div class="fee-summary">
         <span class="label" id="fee-label">Select at least one event</span>
         <span class="amount" id="fee-amount">₹0</span>
       </div>
-
+      <div class="fee-tiers">1 event: ₹100 &nbsp;·&nbsp; 2 events: ₹200 &nbsp;·&nbsp; 3 events: ₹250 &nbsp;·&nbsp; 4 events: ₹300 &nbsp;·&nbsp; 5 events: ₹350</div>
+      <input type="hidden" id="fee-amount-input" name="feeAmount" value="0">
       <div class="submit-row">
         <button type="submit" class="btn btn-solid-red" id="submit-btn" disabled>Submit Registration</button>
       </div>
-
       <div class="status-msg" id="status-msg"></div>
     </form>
   </div>
 </section>
-
 <footer>
   <div class="footer-inner">
     <div class="logo"><img class="logo-mark" src="FKS Logo.png"></div>
   </div>
 </footer>
-
 <script>
   let selectedGrade = null;
   const gradePills = document.querySelectorAll('.radio-pill');
   const eventChecks = document.querySelectorAll('.event-check');
   const submitBtn = document.getElementById('submit-btn');
+  const feeLabel = document.getElementById('fee-label');
+  const feeAmount = document.getElementById('fee-amount');
+  const feeAmountInput = document.getElementById('fee-amount-input');
+
+  // Flat per-event-count pricing (not per-event summed) — matches the tiers
+  // called out under the fee box: 1=100, 2=200, 3=250, 4=300, 5=350.
+  const FEE_TABLE = { 1: 100, 2: 200, 3: 250, 4: 300, 5: 350 };
 
   // Grade Selection Logic
   gradePills.forEach(pill => {
@@ -180,27 +171,24 @@
       gradePills.forEach(p => p.classList.remove('selected'));
       pill.classList.add('selected');
       selectedGrade = pill.getAttribute('data-grade');
-
       updateEventRestrictions();
       checkFormValidity();
     });
   });
-
   // Event Selection Logic
   eventChecks.forEach(check => {
     check.addEventListener('click', () => {
       if (check.classList.contains('disabled')) return;
-      
+
       check.classList.toggle('selected');
       checkFormValidity();
     });
   });
-
   // Restrict events based on selected grade
   function updateEventRestrictions() {
     eventChecks.forEach(check => {
       const eventType = check.getAttribute('data-event');
-      
+
       if (eventType === 'megaminx' || eventType === '4x4') {
         if (selectedGrade === '6' || selectedGrade === '7') {
           check.classList.add('disabled');
@@ -211,15 +199,27 @@
       }
     });
   }
-
+  // Recomputes the fee box from how many events are currently selected.
+  function updateFeeSummary(selectedEventCount) {
+    if (selectedEventCount === 0) {
+      feeLabel.innerText = 'Select at least one event';
+      feeAmount.innerText = '₹0';
+      feeAmountInput.value = '0';
+      return;
+    }
+    const fee = FEE_TABLE[selectedEventCount];
+    feeLabel.innerText = `${selectedEventCount} event${selectedEventCount > 1 ? 's' : ''} selected`;
+    feeAmount.innerText = `₹${fee}`;
+    feeAmountInput.value = String(fee);
+  }
   // Validate form and activate submit button
   function checkFormValidity() {
     const hasSelectedGrade = selectedGrade !== null;
-    const hasSelectedEvent = document.querySelectorAll('.event-check.selected').length > 0;
-    
-    submitBtn.disabled = !(hasSelectedGrade && hasSelectedEvent);
+    const selectedEventCount = document.querySelectorAll('.event-check.selected').length;
+
+    updateFeeSummary(selectedEventCount);
+    submitBtn.disabled = !(hasSelectedGrade && selectedEventCount > 0);
   }
 </script>
-
 </body>
 </html>
