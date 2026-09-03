@@ -255,39 +255,42 @@
     statusMsg.style.display = "none";
     statusMsg.className = "status-msg";
 
-    fetch(REGISTRATION_API_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-      body: JSON.stringify(payload)
-    })
-    .then(() => {
-      // Display success message explicitly
-      statusMsg.textContent = "Registration submitted successfully! See you at FKS Cubing Open 2026.";
-      statusMsg.className = "status-msg success";
-      statusMsg.style.display = "block";
-      
-      // Clear form inputs and selections
-      form.reset();
-      selectedGrade = null;
-      gradePills.forEach(p => p.classList.remove('selected'));
-      eventChecks.forEach(c => {
-        c.classList.remove('selected');
-        c.classList.remove('disabled');
-      });
-      updateFeeSummary(0);
-    })
-    .catch(err => {
-      console.error("Registration error:", err);
-      statusMsg.textContent = "There was an error submitting your registration. Please try again.";
-      statusMsg.className = "status-msg error";
-      statusMsg.style.display = "block";
-    })
-    .finally(() => {
-      submitBtn.textContent = "Submit Registration";
-    });
+   fetch(REGISTRATION_API_URL, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'text/plain;charset=utf-8'
+  },
+  body: JSON.stringify(payload)
+})
+.then(res => res.json()) // Parse the returned JSON from Google Apps Script
+.then(data => {
+  // Read the 'id' property from the response object
+  const registrationId = data.id || "N/A";
+
+  // Display the success message with the ID formatted in bold
+  statusMsg.innerHTML = `Registration submitted successfully! Your Registration ID is <strong>${registrationId}</strong>. See you at FKS Cubing Open 2026.`;
+  statusMsg.className = "status-msg success";
+  statusMsg.style.display = "block";
+
+  // Reset form inputs & UI state
+  form.reset();
+  selectedGrade = null;
+  gradePills.forEach(p => p.classList.remove('selected'));
+  eventChecks.forEach(c => {
+    c.classList.remove('selected');
+    c.classList.remove('disabled');
+  });
+  updateFeeSummary(0);
+})
+.catch(err => {
+  console.error("Registration error:", err);
+  statusMsg.textContent = "There was an error submitting your registration. Please try again.";
+  statusMsg.className = "status-msg error";
+  statusMsg.style.display = "block";
+})
+.finally(() => {
+  submitBtn.textContent = "Submit Registration";
+});
   });
 </script>
 
