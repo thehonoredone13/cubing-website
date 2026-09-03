@@ -152,7 +152,8 @@
     <div class="logo"><img class="logo-mark" src="FKS Logo.png"></div>
   </div>
 </footer>
-<script>
+
+  <script>
   let selectedGrade = null;
   const form = document.getElementById('reg-form');
   const nameInput = document.getElementById('name');
@@ -164,10 +165,8 @@
   const feeAmountInput = document.getElementById('fee-amount-input');
   const statusMsg = document.getElementById('status-msg');
 
-  // Replace with your actual Google Apps Script Web App URL
   const REGISTRATION_API_URL = 'https://script.google.com/macros/s/AKfycbzDnOlNpI72X25rFl4D2rywCfv97MtvXX_Yzch2Yq7-yV4bjzypxy4u8OJOpS63h2Ll/exec';
 
-  // Flat per-event-count pricing (matches the tiers: 1=100, 2=200, 3=250, 4=300, 5=350)
   const FEE_TABLE = { 1: 100, 2: 200, 3: 250, 4: 300, 5: 350 };
 
   // Grade Selection Logic
@@ -199,7 +198,7 @@
       if (eventType === 'megaminx' || eventType === '4x4') {
         if (selectedGrade === '6' || selectedGrade === '7') {
           check.classList.add('disabled');
-          check.classList.remove('selected'); // Auto-uncheck if previously selected
+          check.classList.remove('selected');
         } else {
           check.classList.remove('disabled');
         }
@@ -251,8 +250,10 @@
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting...";
-    statusMsg.className = "status-msg";
+    
+    // Hide and reset status message prior to request
     statusMsg.style.display = "none";
+    statusMsg.className = "status-msg";
 
     fetch(REGISTRATION_API_URL, {
       method: 'POST',
@@ -263,9 +264,12 @@
       body: JSON.stringify(payload)
     })
     .then(() => {
+      // Display success message explicitly
       statusMsg.textContent = "Registration submitted successfully! See you at FKS Cubing Open 2026.";
       statusMsg.className = "status-msg success";
+      statusMsg.style.display = "block";
       
+      // Clear form inputs and selections
       form.reset();
       selectedGrade = null;
       gradePills.forEach(p => p.classList.remove('selected'));
@@ -273,18 +277,20 @@
         c.classList.remove('selected');
         c.classList.remove('disabled');
       });
-      checkFormValidity();
+      updateFeeSummary(0);
     })
     .catch(err => {
       console.error("Registration error:", err);
       statusMsg.textContent = "There was an error submitting your registration. Please try again.";
       statusMsg.className = "status-msg error";
+      statusMsg.style.display = "block";
     })
     .finally(() => {
       submitBtn.textContent = "Submit Registration";
     });
   });
 </script>
+
 </body>
 </html>
   
