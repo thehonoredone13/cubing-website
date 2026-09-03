@@ -154,15 +154,20 @@
 </footer>
 <script>
   let selectedGrade = null;
+  const form = document.getElementById('reg-form');
+  const nameInput = document.getElementById('name');
   const gradePills = document.querySelectorAll('.radio-pill');
   const eventChecks = document.querySelectorAll('.event-check');
   const submitBtn = document.getElementById('submit-btn');
   const feeLabel = document.getElementById('fee-label');
   const feeAmount = document.getElementById('fee-amount');
   const feeAmountInput = document.getElementById('fee-amount-input');
+  const statusMsg = document.getElementById('status-msg');
 
-  // Flat per-event-count pricing (not per-event summed) — matches the tiers
-  // called out under the fee box: 1=100, 2=200, 3=250, 4=300, 5=350.
+  // Replace with your actual Google Apps Script Web App URL
+  const REGISTRATION_API_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+
+  // Flat per-event-count pricing (matches the tiers: 1=100, 2=200, 3=250, 4=300, 5=350)
   const FEE_TABLE = { 1: 100, 2: 200, 3: 250, 4: 300, 5: 350 };
 
   // Grade Selection Logic
@@ -175,6 +180,7 @@
       checkFormValidity();
     });
   });
+
   // Event Selection Logic
   eventChecks.forEach(check => {
     check.addEventListener('click', () => {
@@ -184,6 +190,7 @@
       checkFormValidity();
     });
   });
+
   // Restrict events based on selected grade
   function updateEventRestrictions() {
     eventChecks.forEach(check => {
@@ -199,19 +206,22 @@
       }
     });
   }
-  // Recomputes the fee box from how many events are currently selected.
+
+  // Recomputes the fee box from how many events are currently selected
   function updateFeeSummary(selectedEventCount) {
     if (selectedEventCount === 0) {
       feeLabel.innerText = 'Select at least one event';
       feeAmount.innerText = '₹0';
       feeAmountInput.value = '0';
-      return;
+      return 0;
     }
-    const fee = FEE_TABLE[selectedEventCount];
+    const fee = FEE_TABLE[selectedEventCount] || 0;
     feeLabel.innerText = `${selectedEventCount} event${selectedEventCount > 1 ? 's' : ''} selected`;
     feeAmount.innerText = `₹${fee}`;
     feeAmountInput.value = String(fee);
+    return fee;
   }
+
   // Validate form and activate submit button
   function checkFormValidity() {
     const hasSelectedGrade = selectedGrade !== null;
@@ -221,15 +231,14 @@
     submitBtn.disabled = !(hasSelectedGrade && selectedEventCount > 0);
   }
 
-
-
+  // Form submission handler
   form.addEventListener('submit', function(e) {
     e.preventDefault();
 
     const selectedEvents = Array.from(document.querySelectorAll('.event-check.selected'))
       .map(el => el.getAttribute('data-event'));
 
-    const calculatedTotal = calculatePricing();
+    const calculatedTotal = FEE_TABLE[selectedEvents.length] || 0;
 
     const payload = {
       action: "register",
@@ -264,7 +273,6 @@
         c.classList.remove('selected');
         c.classList.remove('disabled');
       });
-      calculatePricing();
       checkFormValidity();
     })
     .catch(err => {
@@ -279,3 +287,4 @@
 </script>
 </body>
 </html>
+  
