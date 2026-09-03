@@ -220,6 +220,62 @@
     updateFeeSummary(selectedEventCount);
     submitBtn.disabled = !(hasSelectedGrade && selectedEventCount > 0);
   }
+
+
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const selectedEvents = Array.from(document.querySelectorAll('.event-check.selected'))
+      .map(el => el.getAttribute('data-event'));
+
+    const calculatedTotal = calculatePricing();
+
+    const payload = {
+      action: "register",
+      name: nameInput.value.trim(),
+      grade: `Grade ${selectedGrade}`,
+      events: selectedEvents.join(', '),
+      totalFee: calculatedTotal,
+      fee: calculatedTotal
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
+    statusMsg.className = "status-msg";
+    statusMsg.style.display = "none";
+
+    fetch(REGISTRATION_API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(() => {
+      statusMsg.textContent = "Registration submitted successfully! See you at FKS Cubing Open 2026.";
+      statusMsg.className = "status-msg success";
+      
+      form.reset();
+      selectedGrade = null;
+      gradePills.forEach(p => p.classList.remove('selected'));
+      eventChecks.forEach(c => {
+        c.classList.remove('selected');
+        c.classList.remove('disabled');
+      });
+      calculatePricing();
+      checkFormValidity();
+    })
+    .catch(err => {
+      console.error("Registration error:", err);
+      statusMsg.textContent = "There was an error submitting your registration. Please try again.";
+      statusMsg.className = "status-msg error";
+    })
+    .finally(() => {
+      submitBtn.textContent = "Submit Registration";
+    });
+  });
 </script>
 </body>
 </html>
