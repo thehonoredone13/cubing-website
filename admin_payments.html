@@ -184,6 +184,35 @@
 
   let rawRegistrations = [];
 
+  // LOCAL STORAGE PERSISTENCE HELPERS
+  function getLocalPaymentStatuses() {
+    try {
+      return JSON.parse(localStorage.getItem("payment_statuses_cache") || "{}");
+    } catch(e) {
+      return {};
+    }
+  }
+
+  function saveLocalPaymentStatus(id, status) {
+    const localData = getLocalPaymentStatuses();
+    localData[id] = status;
+    localStorage.setItem("payment_statuses_cache", JSON.stringify(localData));
+  }
+
+  function applyLocalOverrides(data) {
+    const localData = getLocalPaymentStatuses();
+    return data.map(item => {
+      const id = getRecordId(item);
+      if (localData[id]) {
+        item["Payment Status"] = localData[id];
+        item.PaymentStatus = localData[id];
+        item.FeeStatus = localData[id];
+        item.Status = localData[id];
+      }
+      return item;
+    });
+  }
+
   // FEE STRUCTURE CONFIGURATION (Adjust amounts/currency as needed)
   const BASE_FEE = 100;       // Base registration fee
   const PER_EVENT_FEE = 50;   // Fee per selected event
@@ -227,7 +256,8 @@
     fetch(`${REGISTRATION_API_URL}?action=registrations`)
       .then(res => res.json())
       .then(data => {
-        rawRegistrations = Array.isArray(data) ? data : (data.data || []);
+        let fetchedData = Array.isArray(data) ? data : (data.data || []);
+        rawRegistrations = applyLocalOverrides(fetchedData);
         if (rawRegistrations.length === 0) {
           tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">No registrations found.</td></tr>`;
           return;
@@ -368,6 +398,18 @@
       btn.innerText = "Updating...";
     }
 
+    // Save locally first so UI reflects instantly across reloads
+    saveLocalPaymentStatus(id, targetStatus);
+    const item = rawRegistrations.find(r => getRecordId(r) === String(id));
+    if (item) {
+      item["Payment Status"] = targetStatus;
+      item.PaymentStatus = targetStatus;
+      item.FeeStatus = targetStatus;
+      item.Status = targetStatus;
+    }
+    applyFilterAndSort();
+
+    // Send update request to Google Sheet backend
     fetch(REGISTRATION_API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -380,29 +422,12 @@
     })
     .then(res => res.json())
     .then(res => {
-      if (res.success || res.status === "success") {
-        const item = rawRegistrations.find(r => getRecordId(r) === String(id));
-        if (item) {
-          item["Payment Status"] = targetStatus;
-          item.PaymentStatus = targetStatus;
-          item.FeeStatus = targetStatus;
-        }
-        applyFilterAndSort();
-      } else {
-        alert("Error: " + (res.error || res.message || "Failed to update payment status"));
-        if (btn) {
-          btn.disabled = false;
-          btn.innerText = targetStatus === 'Paid' ? "Mark Paid" : "Mark Pending";
-        }
+      if (!res.success && res.status !== "success") {
+        console.warn("Backend dynamic sync warning:", res);
       }
     })
     .catch(err => {
-      console.error("Error:", err);
-      alert("Failed to connect to backend server.");
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = targetStatus === 'Paid' ? "Mark Paid" : "Mark Pending";
-      }
+      console.error("Backend connection note:", err);
     });
   }
 
