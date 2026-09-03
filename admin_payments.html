@@ -18,13 +18,13 @@
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:30px 20px;}
-  .wrap{max-width:1050px;margin:0 auto;}
+  .wrap{max-width:1100px;margin:0 auto;}
   header{margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;}
   h1{font-family:'Space Grotesk',sans-serif;font-size:26px;}
   .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
   .back-link:hover{color:var(--ink);}
 
-  /* ---------- FILTER & CONTROLS BAR ---------- */
+  /* FILTER BAR */
   .filter-card {
     background: #fff;
     border: 1px solid var(--line);
@@ -78,6 +78,12 @@
   .badge-paid{background:rgba(30,142,90,0.15);color:var(--cube-green);}
   .badge-pending{background:rgba(230,64,42,0.15);color:var(--cube-red);}
   
+  .amount-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
   .btn{
     padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;
     font-family:'IBM Plex Mono',monospace;transition:all .15s ease;
@@ -112,7 +118,7 @@
   <!-- FILTERS & SEARCH -->
   <div class="filter-card">
     <div class="filter-group">
-      <label for="eventFilter">Filter by Cube Event</label>
+      <label for="eventFilter">Filter by Event</label>
       <select id="eventFilter" class="filter-control" onchange="applyFilterAndSort()">
         <option value="ALL">All Events</option>
       </select>
@@ -159,13 +165,14 @@
           <th>ID</th>
           <th>Name</th>
           <th>Selected Events</th>
+          <th>Amount Due</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
       </thead>
       <tbody id="regTableBody">
         <tr>
-          <td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
+          <td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
         </tr>
       </tbody>
     </table>
@@ -173,21 +180,56 @@
 </div>
 
 <script>
-  // UPDATE THIS TO YOUR REGISTRATIONS APPS SCRIPT DEPLOYED URL
   const REGISTRATION_API_URL = "https://script.google.com/macros/s/AKfycbzDnOlNpI72X25rFl4D2rywCfv97MtvXX_Yzch2Yq7-yV4bjzypxy4u8OJOpS63h2Ll/exec";
 
   let rawRegistrations = [];
 
+  // FEE STRUCTURE CONFIGURATION (Adjust amounts/currency as needed)
+  const BASE_FEE = 100;       // Base registration fee
+  const PER_EVENT_FEE = 50;   // Fee per selected event
+  const CURRENCY_SYMBOL = "₹"; // Change to $, €, etc.
+
+  // Robust field extractors that check multiple common header name patterns
+  function getRecordId(row) {
+    return String(row.Username || row.username || row.ID || row.id || row["Competitor ID"] || row["User ID"] || '—').trim();
+  }
+
+  function getRecordName(row) {
+    return String(row.Name || row.name || row["Full Name"] || row["Competitor Name"] || '—').trim();
+  }
+
+  function getRecordEvents(row) {
+    return String(row.Events || row.events || row["Selected Events"] || row["SelectedEvents"] || row.Event || '—').trim();
+  }
+
+  function calculateAmount(eventsString, explicitAmount) {
+    // If your Google Sheet already has an "Amount" or "Fee" column, use that value directly
+    if (explicitAmount !== undefined && explicitAmount !== null && explicitAmount !== '' && !isNaN(explicitAmount)) {
+      return `${CURRENCY_SYMBOL}${Number(explicitAmount)}`;
+    }
+    
+    if (!eventsString || eventsString === '—') return `${CURRENCY_SYMBOL}0`;
+    
+    // Split events by comma
+    const eventList = eventsString.split(',').map(e => e.trim()).filter(e => e.length > 0);
+    const count = eventList.length;
+    
+    if (count === 0) return `${CURRENCY_SYMBOL}0`;
+
+    const total = BASE_FEE + (count * PER_EVENT_FEE);
+    return `${CURRENCY_SYMBOL}${total}`;
+  }
+
   function loadRegistrations() {
     const tbody = document.getElementById("regTableBody");
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
 
     fetch(`${REGISTRATION_API_URL}?action=registrations`)
       .then(res => res.json())
       .then(data => {
         rawRegistrations = Array.isArray(data) ? data : (data.data || []);
         if (rawRegistrations.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No registrations found.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">No registrations found.</td></tr>`;
           return;
         }
 
@@ -196,21 +238,18 @@
       })
       .catch(err => {
         console.error("Error loading registrations:", err);
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify API_URL.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify API_URL.</td></tr>`;
       });
   }
 
-  // Populate dynamic Cube Event options
   function populateEventDropdown(data) {
     const eventSelect = document.getElementById('eventFilter');
     const selected = eventSelect.value;
-
     const uniqueEvents = new Set();
 
     data.forEach(item => {
-      const eventStr = item.Events || item.Event || item.SelectedEvents || '';
-      if (eventStr) {
-        // Split if comma separated (e.g. "3x3, 2x2, Pyraminx")
+      const eventStr = getRecordEvents(item);
+      if (eventStr !== '—') {
         eventStr.split(',').forEach(e => uniqueEvents.add(e.trim()));
       }
     });
@@ -232,32 +271,27 @@
     const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
     const allowRevert = document.getElementById('allowRevert').checked;
 
-    // 1. FILTERING
     let filtered = rawRegistrations.filter(row => {
-      const status = (row.PaymentStatus || row.FeeStatus || "Pending").trim();
+      const status = String(row["Payment Status"] || row.PaymentStatus || row.FeeStatus || row.Status || "Pending").trim();
       const isPaid = status.toLowerCase() === "paid";
-      const events = row.Events || row.Event || row.SelectedEvents || '';
+      const events = getRecordEvents(row);
 
-      // Event Match
-      const matchEvent = (eventFilter === 'ALL') || events.toLowerCase().includes(eventFilter.toLowerCase());
+      const matchEvent = (eventFilter === 'ALL') || (events !== '—' && events.toLowerCase().includes(eventFilter.toLowerCase()));
 
-      // Status Match
       let matchStatus = true;
       if (statusFilter === 'Pending') matchStatus = !isPaid;
       if (statusFilter === 'Paid') matchStatus = isPaid;
 
-      // Search Query Match
-      const name = (row.Name || '').toLowerCase();
-      const id = String(row.ID || '').toLowerCase();
+      const name = getRecordName(row).toLowerCase();
+      const id = getRecordId(row).toLowerCase();
       const matchSearch = !searchQuery || name.includes(searchQuery) || id.includes(searchQuery);
 
       return matchEvent && matchStatus && matchSearch;
     });
 
-    // 2. SORTING
     filtered.sort((a, b) => {
-      const statusA = (a.PaymentStatus || a.FeeStatus || "Pending").toLowerCase();
-      const statusB = (b.PaymentStatus || b.FeeStatus || "Pending").toLowerCase();
+      const statusA = String(a["Payment Status"] || a.PaymentStatus || a.FeeStatus || "Pending").toLowerCase();
+      const statusB = String(b["Payment Status"] || b.PaymentStatus || b.FeeStatus || "Pending").toLowerCase();
 
       if (sortBy === 'Status-pending') {
         if (statusA === statusB) return 0;
@@ -268,15 +302,14 @@
         return statusA === 'paid' ? -1 : 1;
       }
       if (sortBy === 'Name-asc') {
-        return (a.Name || '').localeCompare(b.Name || '');
+        return getRecordName(a).localeCompare(getRecordName(b));
       }
       if (sortBy === 'ID-asc') {
-        return String(a.ID || '').localeCompare(String(b.ID || ''), undefined, {numeric: true});
+        return getRecordId(a).localeCompare(getRecordId(b), undefined, {numeric: true});
       }
       return 0;
     });
 
-    // 3. RENDER TABLE
     renderTable(filtered, allowRevert);
   }
 
@@ -284,12 +317,19 @@
     const tbody = document.getElementById("regTableBody");
 
     if (records.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching registrations found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching registrations found.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = records.map(row => {
-      const status = row.PaymentStatus || row.FeeStatus || "Pending";
+      const recId = getRecordId(row);
+      const recName = getRecordName(row);
+      const recEvents = getRecordEvents(row);
+      
+      const explicitAmount = row.Amount || row.amount || row.Fee || row.fee || row["Total Fee"] || row["Total Amount"];
+      const amountFormatted = calculateAmount(recEvents, explicitAmount);
+
+      const status = row["Payment Status"] || row.PaymentStatus || row.FeeStatus || row.Status || "Pending";
       const isPaid = String(status).toLowerCase() === "paid";
       const badgeClass = isPaid ? "badge-paid" : "badge-pending";
       const displayStatus = isPaid ? "Payment Done" : "Pending";
@@ -297,12 +337,10 @@
       let actionButton = '';
 
       if (!isPaid) {
-        // Pending state -> Show "Mark Paid" button
-        actionButton = `<button id="btn-${row.ID}" class="btn btn-pay" onclick="togglePayment('${row.ID}', 'Paid')">Mark Paid</button>`;
+        actionButton = `<button id="btn-${recId}" class="btn btn-pay" onclick="togglePayment('${recId}', 'Paid')">Mark Paid</button>`;
       } else {
-        // Paid state -> Disabled "Done" button (or "Mark Pending" if revert option is enabled)
         if (allowRevert) {
-          actionButton = `<button id="btn-${row.ID}" class="btn btn-unpay" onclick="togglePayment('${row.ID}', 'Pending')">Mark Pending</button>`;
+          actionButton = `<button id="btn-${recId}" class="btn btn-unpay" onclick="togglePayment('${recId}', 'Pending')">Mark Pending</button>`;
         } else {
           actionButton = `<button class="btn btn-done" disabled>Done / Paid</button>`;
         }
@@ -310,9 +348,10 @@
 
       return `
         <tr>
-          <td><b>${row.ID || '—'}</b></td>
-          <td>${row.Name || '—'}</td>
-          <td>${row.Events || row.Event || '—'}</td>
+          <td><b>${recId}</b></td>
+          <td>${recName}</td>
+          <td>${recEvents}</td>
+          <td><span class="amount-tag">${amountFormatted}</span></td>
           <td><span class="badge ${badgeClass}">${displayStatus}</span></td>
           <td>${actionButton}</td>
         </tr>
@@ -334,6 +373,7 @@
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         action: "updateRegistration",
+        Username: id,
         id: id,
         PaymentStatus: targetStatus
       })
@@ -341,9 +381,9 @@
     .then(res => res.json())
     .then(res => {
       if (res.success || res.status === "success") {
-        // Update local state instantly and re-render
-        const item = rawRegistrations.find(r => String(r.ID) === String(id));
+        const item = rawRegistrations.find(r => getRecordId(r) === String(id));
         if (item) {
+          item["Payment Status"] = targetStatus;
           item.PaymentStatus = targetStatus;
           item.FeeStatus = targetStatus;
         }
