@@ -24,6 +24,51 @@
   .back-link{color:var(--text-dim);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:13px;}
   .back-link:hover{color:var(--ink);}
 
+  /* SUMMARY STATS CARD */
+  .summary-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .summary-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    margin-bottom: 12px;
+    color: var(--ink);
+  }
+  .total-stat {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    color: var(--cube-green);
+    margin-bottom: 16px;
+  }
+  .event-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .event-stat-item {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .event-stat-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .event-stat-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink);
+  }
+
   /* FILTER BAR */
   .filter-card {
     background: #fff;
@@ -114,6 +159,15 @@
     </div>
     <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
   </header>
+
+  <!-- SUMMARY STATS CARD -->
+  <div class="summary-card">
+    <div class="summary-title">Revenue Overview</div>
+    <div class="total-stat" id="totalCollected">₹0</div>
+    <div class="event-stats-grid" id="eventStatsGrid">
+      <div style="color: var(--text-dim); font-size: 13px;">Calculating collections...</div>
+    </div>
+  </div>
 
   <!-- FILTERS & SEARCH -->
   <div class="filter-card">
@@ -213,12 +267,11 @@
     });
   }
 
-  // FEE STRUCTURE CONFIGURATION (Adjust amounts/currency as needed)
+  // FEE STRUCTURE CONFIGURATION
   const BASE_FEE = 100;       // Base registration fee
   const PER_EVENT_FEE = 50;   // Fee per selected event
-  const CURRENCY_SYMBOL = "₹"; // Change to $, €, etc.
+  const CURRENCY_SYMBOL = "₹";
 
-  // Robust field extractors that check multiple common header name patterns
   function getRecordId(row) {
     return String(row.Username || row.username || row.ID || row.id || row["Competitor ID"] || row["User ID"] || '—').trim();
   }
@@ -231,22 +284,71 @@
     return String(row.Events || row.events || row["Selected Events"] || row["SelectedEvents"] || row.Event || '—').trim();
   }
 
-  function calculateAmount(eventsString, explicitAmount) {
-    // If your Google Sheet already has an "Amount" or "Fee" column, use that value directly
+  function getNumericAmount(eventsString, explicitAmount) {
     if (explicitAmount !== undefined && explicitAmount !== null && explicitAmount !== '' && !isNaN(explicitAmount)) {
-      return `${CURRENCY_SYMBOL}${Number(explicitAmount)}`;
+      return Number(explicitAmount);
     }
+    if (!eventsString || eventsString === '—') return 0;
     
-    if (!eventsString || eventsString === '—') return `${CURRENCY_SYMBOL}0`;
-    
-    // Split events by comma
     const eventList = eventsString.split(',').map(e => e.trim()).filter(e => e.length > 0);
-    const count = eventList.length;
-    
-    if (count === 0) return `${CURRENCY_SYMBOL}0`;
+    if (eventList.length === 0) return 0;
 
-    const total = BASE_FEE + (count * PER_EVENT_FEE);
+    return BASE_FEE + (eventList.length * PER_EVENT_FEE);
+  }
+
+  function calculateAmount(eventsString, explicitAmount) {
+    const total = getNumericAmount(eventsString, explicitAmount);
     return `${CURRENCY_SYMBOL}${total}`;
+  }
+
+  function calculateCollections(data) {
+    let totalCollected = 0;
+    const eventCollections = {};
+
+    data.forEach(row => {
+      const status = String(row["Payment Status"] || row.PaymentStatus || row.FeeStatus || row.Status || "Pending").trim();
+      const isPaid = status.toLowerCase() === "paid";
+
+      if (isPaid) {
+        const explicitAmount = row.Amount || row.amount || row.Fee || row.fee || row["Total Fee"] || row["Total Amount"];
+        const eventsStr = getRecordEvents(row);
+        const amount = getNumericAmount(eventsStr, explicitAmount);
+        
+        totalCollected += amount;
+
+        // Calculate amount per event for this competitor
+        if (eventsStr !== '—') {
+          const eventsList = eventsStr.split(',').map(e => e.trim()).filter(e => e.length > 0);
+          if (eventsList.length > 0) {
+            // Distribute amount equally among events, or attribute PER_EVENT_FEE per event
+            const perEventShare = explicitAmount ? (amount / eventsList.length) : PER_EVENT_FEE;
+            
+            eventsList.forEach(evt => {
+              eventCollections[evt] = (eventCollections[evt] || 0) + perEventShare;
+            });
+          }
+        }
+      }
+    });
+
+    // Update Overall Total Display
+    document.getElementById("totalCollected").innerText = `${CURRENCY_SYMBOL}${totalCollected.toLocaleString()}`;
+
+    // Update Event Breakdown Grid
+    const grid = document.getElementById("eventStatsGrid");
+    const eventKeys = Object.keys(eventCollections);
+
+    if (eventKeys.length === 0) {
+      grid.innerHTML = `<div style="color: var(--text-dim); font-size: 13px; grid-column: 1/-1;">No payments collected yet.</div>`;
+      return;
+    }
+
+    grid.innerHTML = eventKeys.map(evt => `
+      <div class="event-stat-item">
+        <div class="event-stat-name">${evt}</div>
+        <div class="event-stat-val">${CURRENCY_SYMBOL}${Math.round(eventCollections[evt]).toLocaleString()}</div>
+      </div>
+    `).join("");
   }
 
   function loadRegistrations() {
@@ -264,6 +366,7 @@
         }
 
         populateEventDropdown(rawRegistrations);
+        calculateCollections(rawRegistrations);
         applyFilterAndSort();
       })
       .catch(err => {
@@ -398,7 +501,7 @@
       btn.innerText = "Updating...";
     }
 
-    // Save locally first so UI reflects instantly across reloads
+    // Save locally first so UI reflects instantly
     saveLocalPaymentStatus(id, targetStatus);
     const item = rawRegistrations.find(r => getRecordId(r) === String(id));
     if (item) {
@@ -407,6 +510,9 @@
       item.FeeStatus = targetStatus;
       item.Status = targetStatus;
     }
+    
+    // Recalculate financial stats and apply filter/sort
+    calculateCollections(rawRegistrations);
     applyFilterAndSort();
 
     // Send update request to Google Sheet backend
