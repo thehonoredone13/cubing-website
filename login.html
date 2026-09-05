@@ -178,8 +178,23 @@
       errDiv.style.display = 'block';
 
       
+   
     }
-  }
+  // Inside login.html after successful password verification
+function handleLoginSuccess() {
+  // Store authentication state for current browser session
+  sessionStorage.setItem("admin_is_logged_in", "true");
+  
+  // Redirect to admin home
+  window.location.href = "admin_home.html";
+}
+
+function handleLogout() {
+  // Clear the session on logout
+  sessionStorage.removeItem("admin_is_logged_in");
+  window.location.href = "login.html";
+}
+ }
 </script>
 
 </body>
