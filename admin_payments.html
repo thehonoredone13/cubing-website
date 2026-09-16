@@ -38,15 +38,41 @@
     margin-bottom: 12px;
     color: var(--ink);
   }
+  .totals-row {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .total-stat-box {
+    display: flex;
+    flex-direction: column;
+  }
+  .total-stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .total-stat-count {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    color: var(--ink);
+  }
   .total-stat {
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 28px;
+    font-size: 26px;
     color: var(--cube-green);
-    margin-bottom: 16px;
+  }
+  .total-stat-potential {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    color: var(--ink);
   }
   .event-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px;
   }
   .event-stat-item {
@@ -67,6 +93,12 @@
     font-weight: 600;
     font-size: 15px;
     color: var(--ink);
+  }
+  .event-stat-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--cube-green);
+    margin-top: 2px;
   }
 
   /* FILTER BAR */
@@ -122,6 +154,7 @@
   .badge{display:inline-block;padding:3px 8px;border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;}
   .badge-paid{background:rgba(30,142,90,0.15);color:var(--cube-green);}
   .badge-pending{background:rgba(230,64,42,0.15);color:var(--cube-red);}
+  .badge-grade{background:rgba(18,23,43,0.08);color:var(--ink);}
   
   .amount-tag {
     font-family: 'IBM Plex Mono', monospace;
@@ -162,10 +195,23 @@
 
   <!-- SUMMARY STATS CARD -->
   <div class="summary-card">
-    <div class="summary-title">Revenue Overview</div>
-    <div class="total-stat" id="totalCollected">₹0</div>
+    <div class="summary-title">Registration &amp; Revenue Overview</div>
+    <div class="totals-row">
+      <div class="total-stat-box">
+        <span class="total-stat-label">Total Registrations</span>
+        <div class="total-stat-count" id="totalRegsCount">0</div>
+      </div>
+      <div class="total-stat-box">
+        <span class="total-stat-label">Total Revenue Collected</span>
+        <div class="total-stat" id="totalCollected">₹0</div>
+      </div>
+      <div class="total-stat-box">
+        <span class="total-stat-label">Total Registration Potential</span>
+        <div class="total-stat-potential" id="totalPotential">₹0</div>
+      </div>
+    </div>
     <div class="event-stats-grid" id="eventStatsGrid">
-      <div style="color: var(--text-dim); font-size: 13px;">Calculating collections...</div>
+      <div style="color: var(--text-dim); font-size: 13px;">Calculating stats...</div>
     </div>
   </div>
 
@@ -199,7 +245,7 @@
 
     <div class="filter-group">
       <label for="searchInput">Search Competitor</label>
-      <input type="text" id="searchInput" class="filter-control" placeholder="Search name or ID..." oninput="applyFilterAndSort()">
+      <input type="text" id="searchInput" class="filter-control" placeholder="Search name, ID, or grade..." oninput="applyFilterAndSort()">
     </div>
   </div>
 
@@ -218,6 +264,7 @@
         <tr>
           <th>ID</th>
           <th>Name</th>
+          <th>Grade</th>
           <th>Selected Events</th>
           <th>Amount Due</th>
           <th>Status</th>
@@ -226,7 +273,7 @@
       </thead>
       <tbody id="regTableBody">
         <tr>
-          <td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
+          <td colspan="7" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td>
         </tr>
       </tbody>
     </table>
@@ -238,6 +285,7 @@
 
   let rawRegistrations = [];
 
+  // Local Storage cache for instant UI feedback
   function getLocalPaymentStatuses() {
     try {
       return JSON.parse(localStorage.getItem("payment_statuses_cache") || "{}");
@@ -252,16 +300,65 @@
     localStorage.setItem("payment_statuses_cache", JSON.stringify(localData));
   }
 
+  // Session Storage memory functions for filter states
+  function saveFilterSessionState() {
+    const filterState = {
+      eventFilter: document.getElementById('eventFilter').value,
+      statusFilter: document.getElementById('statusFilter').value,
+      sortBy: document.getElementById('sortBy').value,
+      searchInput: document.getElementById('searchInput').value,
+      allowRevert: document.getElementById('allowRevert').checked
+    };
+    sessionStorage.setItem("admin_filter_session", JSON.stringify(filterState));
+  }
+
+  function restoreFilterSessionState() {
+    try {
+      const savedState = JSON.parse(sessionStorage.getItem("admin_filter_session"));
+      if (!savedState) return;
+
+      if (savedState.statusFilter !== undefined) document.getElementById('statusFilter').value = savedState.statusFilter;
+      if (savedState.sortBy !== undefined) document.getElementById('sortBy').value = savedState.sortBy;
+      if (savedState.searchInput !== undefined) document.getElementById('searchInput').value = savedState.searchInput;
+      if (savedState.allowRevert !== undefined) document.getElementById('allowRevert').checked = savedState.allowRevert;
+      if (savedState.eventFilter !== undefined) {
+        const eventSelect = document.getElementById('eventFilter');
+        if (eventSelect.querySelector(`option[value="${savedState.eventFilter}"]`)) {
+          eventSelect.value = savedState.eventFilter;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not restore session memory:", e);
+    }
+  }
+
+  // Extract raw status directly from Spreadsheet data
+  function getRawSpreadsheetStatus(item) {
+    const statusVal = item["Payment Status"] || item.PaymentStatus || item.FeeStatus || item["PaymentStatus"] || item.Status || item.status || "";
+    return String(statusVal).trim();
+  }
+
+  // Apply overrides while respecting verified spreadsheet Paid status
   function applyLocalOverrides(data) {
     const localData = getLocalPaymentStatuses();
     return data.map(item => {
       const id = getRecordId(item);
-      if (localData[id]) {
-        item["Payment Status"] = localData[id];
-        item.PaymentStatus = localData[id];
-        item.FeeStatus = localData[id];
-        item.Status = localData[id];
+      const sheetStatus = getRawSpreadsheetStatus(item);
+
+      // If spreadsheet explicitly shows Paid, ensure it's honored
+      if (sheetStatus.toLowerCase() === "paid") {
+        item.computedStatus = "Paid";
+      } else if (localData[id]) {
+        item.computedStatus = localData[id];
+      } else {
+        item.computedStatus = sheetStatus || "Pending";
       }
+
+      item["Payment Status"] = item.computedStatus;
+      item.PaymentStatus = item.computedStatus;
+      item.FeeStatus = item.computedStatus;
+      item.Status = item.computedStatus;
+
       return item;
     });
   }
@@ -276,18 +373,14 @@
     return String(row.Name || row.name || row["Full Name"] || row["Competitor Name"] || '—').trim();
   }
 
+  function getRecordGrade(row) {
+    return String(row.Grade || row.grade || row.Class || row.class || row["Grade/Class"] || '—').trim();
+  }
+
   function getRecordEvents(row) {
     return String(row.Events || row.events || row["Selected Events"] || row["SelectedEvents"] || row.Event || '—').trim();
   }
 
-  /**
-   * Calculate Fee dynamically according to event tier structure:
-   * 1 Event  = 100
-   * 2 Events = 200
-   * 3 Events = 250
-   * 4 Events = 300
-   * 5 Events = 350
-   */
   function calculateFeeFromEvents(eventsStr) {
     if (!eventsStr || eventsStr === '—') return 0;
     const count = eventsStr.split(',').map(e => e.trim()).filter(e => e.length > 0).length;
@@ -309,7 +402,6 @@
       return computedFee;
     }
 
-    // Fallback to explicit row amount if event string calculation yields 0
     const explicitAmount = row.Amount || row.amount || row.Fee || row.fee || row["Total Fee"] || row["Total Amount"] || row["Amount Due"] || row.AmountDue;
     if (explicitAmount !== undefined && explicitAmount !== null && explicitAmount !== '') {
       const parsed = parseFloat(String(explicitAmount).replace(/[^0-9.]/g, ''));
@@ -326,19 +418,27 @@
 
   function calculateCollections(data) {
     let totalCollected = 0;
+    let totalPotential = 0;
     const eventCollections = {};
+    const eventCounts = {};
 
     data.forEach(row => {
-      const status = String(row["Payment Status"] || row.PaymentStatus || row.FeeStatus || row.Status || "Pending").trim();
+      const status = String(row.computedStatus || row["Payment Status"] || "Pending").trim();
       const isPaid = status.toLowerCase() === "paid";
+      const amount = getNumericAmount(row);
+      const eventsStr = getRecordEvents(row);
 
-      if (isPaid) {
-        const amount = getNumericAmount(row);
-        totalCollected += amount;
+      totalPotential += amount;
 
-        const eventsStr = getRecordEvents(row);
-        if (eventsStr !== '—') {
-          const eventsList = eventsStr.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      if (eventsStr !== '—') {
+        const eventsList = eventsStr.split(',').map(e => e.trim()).filter(e => e.length > 0);
+        
+        eventsList.forEach(evt => {
+          eventCounts[evt] = (eventCounts[evt] || 0) + 1;
+        });
+
+        if (isPaid) {
+          totalCollected += amount;
           if (eventsList.length > 0) {
             const perEventShare = amount / eventsList.length;
             eventsList.forEach(evt => {
@@ -349,27 +449,34 @@
       }
     });
 
+    document.getElementById("totalRegsCount").innerText = data.length.toLocaleString();
     document.getElementById("totalCollected").innerText = `${CURRENCY_SYMBOL}${totalCollected.toLocaleString()}`;
+    document.getElementById("totalPotential").innerText = `${CURRENCY_SYMBOL}${totalPotential.toLocaleString()}`;
 
     const grid = document.getElementById("eventStatsGrid");
-    const eventKeys = Object.keys(eventCollections);
+    const allEvents = Array.from(new Set([...Object.keys(eventCounts), ...Object.keys(eventCollections)]));
 
-    if (eventKeys.length === 0) {
-      grid.innerHTML = `<div style="color: var(--text-dim); font-size: 13px; grid-column: 1/-1;">No payments collected yet.</div>`;
+    if (allEvents.length === 0) {
+      grid.innerHTML = `<div style="color: var(--text-dim); font-size: 13px; grid-column: 1/-1;">No registrations found.</div>`;
       return;
     }
 
-    grid.innerHTML = eventKeys.map(evt => `
-      <div class="event-stat-item">
-        <div class="event-stat-name">${evt}</div>
-        <div class="event-stat-val">${CURRENCY_SYMBOL}${Math.round(eventCollections[evt]).toLocaleString()}</div>
-      </div>
-    `).join("");
+    grid.innerHTML = allEvents.map(evt => {
+      const regCount = eventCounts[evt] || 0;
+      const collectedAmt = Math.round(eventCollections[evt] || 0);
+      return `
+        <div class="event-stat-item">
+          <div class="event-stat-name">${evt}</div>
+          <div class="event-stat-val">${regCount} Registrations</div>
+          <div class="event-stat-sub">${CURRENCY_SYMBOL}${collectedAmt.toLocaleString()} Collected</div>
+        </div>
+      `;
+    }).join("");
   }
 
   function loadRegistrations() {
     const tbody = document.getElementById("regTableBody");
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-dim);">Loading...</td></tr>`;
 
     fetch(`${REGISTRATION_API_URL}?action=registrations`)
       .then(res => res.json())
@@ -377,17 +484,18 @@
         let fetchedData = Array.isArray(data) ? data : (data.data || []);
         rawRegistrations = applyLocalOverrides(fetchedData);
         if (rawRegistrations.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">No registrations found.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-dim);">No registrations found.</td></tr>`;
           return;
         }
 
         populateEventDropdown(rawRegistrations);
+        restoreFilterSessionState();
         calculateCollections(rawRegistrations);
         applyFilterAndSort();
       })
       .catch(err => {
         console.error("Error loading registrations:", err);
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify API_URL.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--cube-red); padding: 20px;">Failed to load data. Verify API_URL.</td></tr>`;
       });
   }
 
@@ -414,6 +522,8 @@
   }
 
   function applyFilterAndSort() {
+    saveFilterSessionState();
+
     const eventFilter = document.getElementById('eventFilter').value;
     const statusFilter = document.getElementById('statusFilter').value;
     const sortBy = document.getElementById('sortBy').value;
@@ -421,7 +531,7 @@
     const allowRevert = document.getElementById('allowRevert').checked;
 
     let filtered = rawRegistrations.filter(row => {
-      const status = String(row["Payment Status"] || row.PaymentStatus || row.FeeStatus || row.Status || "Pending").trim();
+      const status = String(row.computedStatus || row["Payment Status"] || "Pending").trim();
       const isPaid = status.toLowerCase() === "paid";
       const events = getRecordEvents(row);
 
@@ -433,14 +543,15 @@
 
       const name = getRecordName(row).toLowerCase();
       const id = getRecordId(row).toLowerCase();
-      const matchSearch = !searchQuery || name.includes(searchQuery) || id.includes(searchQuery);
+      const grade = getRecordGrade(row).toLowerCase();
+      const matchSearch = !searchQuery || name.includes(searchQuery) || id.includes(searchQuery) || grade.includes(searchQuery);
 
       return matchEvent && matchStatus && matchSearch;
     });
 
     filtered.sort((a, b) => {
-      const statusA = String(a["Payment Status"] || a.PaymentStatus || a.FeeStatus || "Pending").toLowerCase();
-      const statusB = String(b["Payment Status"] || b.PaymentStatus || b.FeeStatus || "Pending").toLowerCase();
+      const statusA = String(a.computedStatus || "Pending").toLowerCase();
+      const statusB = String(b.computedStatus || "Pending").toLowerCase();
 
       if (sortBy === 'Status-pending') {
         if (statusA === statusB) return 0;
@@ -466,17 +577,18 @@
     const tbody = document.getElementById("regTableBody");
 
     if (records.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching registrations found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-dim);">No matching registrations found.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = records.map(row => {
       const recId = getRecordId(row);
       const recName = getRecordName(row);
+      const recGrade = getRecordGrade(row);
       const recEvents = getRecordEvents(row);
       const amountFormatted = calculateAmount(row);
 
-      const status = row["Payment Status"] || row.PaymentStatus || row.FeeStatus || row.Status || "Pending";
+      const status = row.computedStatus || row["Payment Status"] || "Pending";
       const isPaid = String(status).toLowerCase() === "paid";
       const badgeClass = isPaid ? "badge-paid" : "badge-pending";
       const displayStatus = isPaid ? "Payment Done" : "Pending";
@@ -497,6 +609,7 @@
         <tr>
           <td><b>${recId}</b></td>
           <td>${recName}</td>
+          <td><span class="badge badge-grade">${recGrade}</span></td>
           <td>${recEvents}</td>
           <td><span class="amount-tag">${amountFormatted}</span></td>
           <td><span class="badge ${badgeClass}">${displayStatus}</span></td>
@@ -518,6 +631,7 @@
     saveLocalPaymentStatus(id, targetStatus);
     const item = rawRegistrations.find(r => getRecordId(r) === String(id));
     if (item) {
+      item.computedStatus = targetStatus;
       item["Payment Status"] = targetStatus;
       item.PaymentStatus = targetStatus;
       item.FeeStatus = targetStatus;
