@@ -109,7 +109,7 @@
     padding: 16px;
     margin-bottom: 20px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
     align-items: end;
   }
@@ -225,6 +225,13 @@
     </div>
 
     <div class="filter-group">
+      <label for="gradeFilter">Filter by Grade</label>
+      <select id="gradeFilter" class="filter-control" onchange="applyFilterAndSort()">
+        <option value="ALL">All Grades</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
       <label for="statusFilter">Payment Status</label>
       <select id="statusFilter" class="filter-control" onchange="applyFilterAndSort()">
         <option value="ALL">All Statuses</option>
@@ -304,6 +311,7 @@
   function saveFilterSessionState() {
     const filterState = {
       eventFilter: document.getElementById('eventFilter').value,
+      gradeFilter: document.getElementById('gradeFilter').value,
       statusFilter: document.getElementById('statusFilter').value,
       sortBy: document.getElementById('sortBy').value,
       searchInput: document.getElementById('searchInput').value,
@@ -321,10 +329,18 @@
       if (savedState.sortBy !== undefined) document.getElementById('sortBy').value = savedState.sortBy;
       if (savedState.searchInput !== undefined) document.getElementById('searchInput').value = savedState.searchInput;
       if (savedState.allowRevert !== undefined) document.getElementById('allowRevert').checked = savedState.allowRevert;
+      
       if (savedState.eventFilter !== undefined) {
         const eventSelect = document.getElementById('eventFilter');
         if (eventSelect.querySelector(`option[value="${savedState.eventFilter}"]`)) {
           eventSelect.value = savedState.eventFilter;
+        }
+      }
+
+      if (savedState.gradeFilter !== undefined) {
+        const gradeSelect = document.getElementById('gradeFilter');
+        if (gradeSelect.querySelector(`option[value="${savedState.gradeFilter}"]`)) {
+          gradeSelect.value = savedState.gradeFilter;
         }
       }
     } catch (e) {
@@ -345,7 +361,6 @@
       const id = getRecordId(item);
       const sheetStatus = getRawSpreadsheetStatus(item);
 
-      // If spreadsheet explicitly shows Paid, ensure it's honored
       if (sheetStatus.toLowerCase() === "paid") {
         item.computedStatus = "Paid";
       } else if (localData[id]) {
@@ -419,7 +434,7 @@
   function calculateCollections(data) {
     let totalCollected = 0;
     let totalPotential = 0;
-    const eventCollections = {};
+    const eventPaidCounts = {};
     const eventCounts = {};
 
     data.forEach(row => {
@@ -429,23 +444,17 @@
       const eventsStr = getRecordEvents(row);
 
       totalPotential += amount;
+      if (isPaid) totalCollected += amount;
 
       if (eventsStr !== '—') {
         const eventsList = eventsStr.split(',').map(e => e.trim()).filter(e => e.length > 0);
         
         eventsList.forEach(evt => {
           eventCounts[evt] = (eventCounts[evt] || 0) + 1;
-        });
-
-        if (isPaid) {
-          totalCollected += amount;
-          if (eventsList.length > 0) {
-            const perEventShare = amount / eventsList.length;
-            eventsList.forEach(evt => {
-              eventCollections[evt] = (eventCollections[evt] || 0) + perEventShare;
-            });
+          if (isPaid) {
+            eventPaidCounts[evt] = (eventPaidCounts[evt] || 0) + 1;
           }
-        }
+        });
       }
     });
 
@@ -454,7 +463,7 @@
     document.getElementById("totalPotential").innerText = `${CURRENCY_SYMBOL}${totalPotential.toLocaleString()}`;
 
     const grid = document.getElementById("eventStatsGrid");
-    const allEvents = Array.from(new Set([...Object.keys(eventCounts), ...Object.keys(eventCollections)]));
+    const allEvents = Array.from(new Set([...Object.keys(eventCounts)]));
 
     if (allEvents.length === 0) {
       grid.innerHTML = `<div style="color: var(--text-dim); font-size: 13px; grid-column: 1/-1;">No registrations found.</div>`;
@@ -462,13 +471,13 @@
     }
 
     grid.innerHTML = allEvents.map(evt => {
-      const regCount = eventCounts[evt] || 0;
-      const collectedAmt = Math.round(eventCollections[evt] || 0);
+      const totalRegs = eventCounts[evt] || 0;
+      const paidRegs = eventPaidCounts[evt] || 0;
       return `
         <div class="event-stat-item">
           <div class="event-stat-name">${evt}</div>
-          <div class="event-stat-val">${regCount} Registrations</div>
-          <div class="event-stat-sub">${CURRENCY_SYMBOL}${collectedAmt.toLocaleString()} Collected</div>
+          <div class="event-stat-val">${totalRegs} Total Regs</div>
+          <div class="event-stat-sub">${paidRegs} Paid Registration${paidRegs === 1 ? '' : 's'}</div>
         </div>
       `;
     }).join("");
@@ -488,7 +497,7 @@
           return;
         }
 
-        populateEventDropdown(rawRegistrations);
+        populateFilterDropdowns(rawRegistrations);
         restoreFilterSessionState();
         calculateCollections(rawRegistrations);
         applyFilterAndSort();
@@ -499,25 +508,43 @@
       });
   }
 
-  function populateEventDropdown(data) {
+  function populateFilterDropdowns(data) {
     const eventSelect = document.getElementById('eventFilter');
-    const selected = eventSelect.value;
+    const selectedEvent = eventSelect.value;
     const uniqueEvents = new Set();
+
+    const gradeSelect = document.getElementById('gradeFilter');
+    const selectedGrade = gradeSelect.value;
+    const uniqueGrades = new Set();
 
     data.forEach(item => {
       const eventStr = getRecordEvents(item);
       if (eventStr !== '—') {
         eventStr.split(',').forEach(e => uniqueEvents.add(e.trim()));
       }
+
+      const gradeStr = getRecordGrade(item);
+      if (gradeStr && gradeStr !== '—') {
+        uniqueGrades.add(gradeStr);
+      }
     });
 
+    // Populate Events
     eventSelect.innerHTML = '<option value="ALL">All Events</option>';
     uniqueEvents.forEach(evt => {
       eventSelect.innerHTML += `<option value="${evt}">${evt}</option>`;
     });
+    if ([...uniqueEvents].includes(selectedEvent)) {
+      eventSelect.value = selectedEvent;
+    }
 
-    if ([...uniqueEvents].includes(selected)) {
-      eventSelect.value = selected;
+    // Populate Grades
+    gradeSelect.innerHTML = '<option value="ALL">All Grades</option>';
+    Array.from(uniqueGrades).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(grd => {
+      gradeSelect.innerHTML += `<option value="${grd}">${grd}</option>`;
+    });
+    if ([...uniqueGrades].includes(selectedGrade)) {
+      gradeSelect.value = selectedGrade;
     }
   }
 
@@ -525,6 +552,7 @@
     saveFilterSessionState();
 
     const eventFilter = document.getElementById('eventFilter').value;
+    const gradeFilter = document.getElementById('gradeFilter').value;
     const statusFilter = document.getElementById('statusFilter').value;
     const sortBy = document.getElementById('sortBy').value;
     const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -534,8 +562,10 @@
       const status = String(row.computedStatus || row["Payment Status"] || "Pending").trim();
       const isPaid = status.toLowerCase() === "paid";
       const events = getRecordEvents(row);
+      const grade = getRecordGrade(row);
 
       const matchEvent = (eventFilter === 'ALL') || (events !== '—' && events.toLowerCase().includes(eventFilter.toLowerCase()));
+      const matchGrade = (gradeFilter === 'ALL') || (grade !== '—' && grade.toLowerCase() === gradeFilter.toLowerCase());
 
       let matchStatus = true;
       if (statusFilter === 'Pending') matchStatus = !isPaid;
@@ -543,10 +573,10 @@
 
       const name = getRecordName(row).toLowerCase();
       const id = getRecordId(row).toLowerCase();
-      const grade = getRecordGrade(row).toLowerCase();
-      const matchSearch = !searchQuery || name.includes(searchQuery) || id.includes(searchQuery) || grade.includes(searchQuery);
+      const gradeText = grade.toLowerCase();
+      const matchSearch = !searchQuery || name.includes(searchQuery) || id.includes(searchQuery) || gradeText.includes(searchQuery);
 
-      return matchEvent && matchStatus && matchSearch;
+      return matchEvent && matchGrade && matchStatus && matchSearch;
     });
 
     filtered.sort((a, b) => {
