@@ -292,7 +292,6 @@
 
   let rawRegistrations = [];
 
-  // Local Storage cache for instant UI feedback
   function getLocalPaymentStatuses() {
     try {
       return JSON.parse(localStorage.getItem("payment_statuses_cache") || "{}");
@@ -307,7 +306,6 @@
     localStorage.setItem("payment_statuses_cache", JSON.stringify(localData));
   }
 
-  // Session Storage memory functions for filter states
   function saveFilterSessionState() {
     const filterState = {
       eventFilter: document.getElementById('eventFilter').value,
@@ -348,25 +346,41 @@
     }
   }
 
-  // Extract raw status directly from Spreadsheet data
+  // Expanded search across potential column name variations in Apps Script response
   function getRawSpreadsheetStatus(item) {
-    const statusVal = item["Payment Status"] || item.PaymentStatus || item.FeeStatus || item["PaymentStatus"] || item.Status || item.status || "";
-    return String(statusVal).trim();
+    const possibleKeys = [
+      "Payment Status", "PaymentStatus", "FeeStatus", "Fee Status", 
+      "Status", "status", "payment_status", "fee_status", "Paid"
+    ];
+
+    for (let key of possibleKeys) {
+      if (item[key] !== undefined && item[key] !== null) {
+        return String(item[key]).trim();
+      }
+    }
+    return "";
   }
 
-  // Apply overrides while respecting verified spreadsheet Paid status
+  function isStatusPaid(statusStr) {
+    if (!statusStr) return false;
+    const cleanStr = String(statusStr).trim().toLowerCase();
+    return cleanStr === "paid" || cleanStr === "true" || cleanStr === "yes" || cleanStr === "done" || cleanStr === "1";
+  }
+
+  // Robust overlay that prevents stale local cache from hiding paid records
   function applyLocalOverrides(data) {
     const localData = getLocalPaymentStatuses();
     return data.map(item => {
       const id = getRecordId(item);
-      const sheetStatus = getRawSpreadsheetStatus(item);
+      const sheetStatusRaw = getRawSpreadsheetStatus(item);
+      const isSheetPaid = isStatusPaid(sheetStatusRaw);
 
-      if (sheetStatus.toLowerCase() === "paid") {
+      if (isSheetPaid) {
         item.computedStatus = "Paid";
       } else if (localData[id]) {
         item.computedStatus = localData[id];
       } else {
-        item.computedStatus = sheetStatus || "Pending";
+        item.computedStatus = sheetStatusRaw || "Pending";
       }
 
       item["Payment Status"] = item.computedStatus;
@@ -439,7 +453,7 @@
 
     data.forEach(row => {
       const status = String(row.computedStatus || row["Payment Status"] || "Pending").trim();
-      const isPaid = status.toLowerCase() === "paid";
+      const isPaid = isStatusPaid(status);
       const amount = getNumericAmount(row);
       const eventsStr = getRecordEvents(row);
 
@@ -529,7 +543,6 @@
       }
     });
 
-    // Populate Events
     eventSelect.innerHTML = '<option value="ALL">All Events</option>';
     uniqueEvents.forEach(evt => {
       eventSelect.innerHTML += `<option value="${evt}">${evt}</option>`;
@@ -538,7 +551,6 @@
       eventSelect.value = selectedEvent;
     }
 
-    // Populate Grades
     gradeSelect.innerHTML = '<option value="ALL">All Grades</option>';
     Array.from(uniqueGrades).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(grd => {
       gradeSelect.innerHTML += `<option value="${grd}">${grd}</option>`;
@@ -560,7 +572,7 @@
 
     let filtered = rawRegistrations.filter(row => {
       const status = String(row.computedStatus || row["Payment Status"] || "Pending").trim();
-      const isPaid = status.toLowerCase() === "paid";
+      const isPaid = isStatusPaid(status);
       const events = getRecordEvents(row);
       const grade = getRecordGrade(row);
 
@@ -580,16 +592,16 @@
     });
 
     filtered.sort((a, b) => {
-      const statusA = String(a.computedStatus || "Pending").toLowerCase();
-      const statusB = String(b.computedStatus || "Pending").toLowerCase();
+      const isPaidA = isStatusPaid(a.computedStatus);
+      const isPaidB = isStatusPaid(b.computedStatus);
 
       if (sortBy === 'Status-pending') {
-        if (statusA === statusB) return 0;
-        return statusA === 'pending' ? -1 : 1;
+        if (isPaidA === isPaidB) return 0;
+        return !isPaidA ? -1 : 1;
       }
       if (sortBy === 'Status-paid') {
-        if (statusA === statusB) return 0;
-        return statusA === 'paid' ? -1 : 1;
+        if (isPaidA === isPaidB) return 0;
+        return isPaidA ? -1 : 1;
       }
       if (sortBy === 'Name-asc') {
         return getRecordName(a).localeCompare(getRecordName(b));
@@ -619,7 +631,7 @@
       const amountFormatted = calculateAmount(row);
 
       const status = row.computedStatus || row["Payment Status"] || "Pending";
-      const isPaid = String(status).toLowerCase() === "paid";
+      const isPaid = isStatusPaid(status);
       const badgeClass = isPaid ? "badge-paid" : "badge-pending";
       const displayStatus = isPaid ? "Payment Done" : "Pending";
 
