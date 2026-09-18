@@ -42,8 +42,8 @@
   .field input[type=text]{
     width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:14.5px;font-family:'Inter',sans-serif;
   }
-  .grade-options{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
-  @media(max-width:520px){.grade-options{grid-template-columns:repeat(2,1fr);}}
+  .grade-options{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  @media(max-width:520px){.grade-options{grid-template-columns:repeat(3,1fr);}}
   .radio-pill{
     border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;font-size:13.5px;font-weight:600;
     cursor:pointer;transition:border-color .15s ease, background .15s ease;
@@ -194,12 +194,13 @@
       <div class="field">
         <label>Grade</label>
         <div class="grade-options" id="grade-options">
+          <div class="radio-pill" data-grade="5">Grade 5</div>
           <div class="radio-pill" data-grade="6">Grade 6</div>
           <div class="radio-pill" data-grade="7">Grade 7</div>
           <div class="radio-pill" data-grade="8">Grade 8</div>
           <div class="radio-pill" data-grade="9">Grade 9</div>
         </div>
-        <div class="hint">Megaminx and 4x4 are only open to Grades 8 &amp; 9.</div>
+        <div class="hint">Megaminx and 4x4 are only open to Grades 7, 8 &amp; 9.</div>
       </div>
       <div class="field">
         <label>Events</label>
@@ -283,7 +284,7 @@
       const eventType = check.getAttribute('data-event');
 
       if (eventType === 'megaminx' || eventType === '4x4') {
-        if (selectedGrade === '6' || selectedGrade === '7') {
+        if (selectedGrade === '5' || selectedGrade === '6') {
           check.classList.add('disabled');
           check.classList.remove('selected');
         } else {
