@@ -102,7 +102,7 @@
     <a href="admin_home.html" class="back-link">&larr; Back to Home</a>
   </header>
 
-  <!-- DIAGNOSTICS: tells you whether the problem is frontend or backend -->
+  <!-- DIAGNOSTICS -->
   <div class="diag" id="diagCard">
     <div class="diag-head" onclick="toggleDiag()">
       <span class="diag-title" id="diagHeadline">Checking connection to the sheet...</span>
@@ -212,7 +212,7 @@ const LEGACY_KEY  = "payment_statuses_cache";
 const FILTER_KEY  = "admin_filter_session";
 
 /* =====================================================================
-   SAFE STORAGE (never throws; private mode / blocked cookies safe)
+   SAFE STORAGE
    ===================================================================== */
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -231,15 +231,12 @@ function ssSet(key, val) {
 }
 
 /* =====================================================================
-   FLEXIBLE COLUMN MATCHING
-   The old code compared column names with exact, case-sensitive strings.
-   One stray space or a different capitalisation in the sheet header and
-   the status column was invisible, so every row read back as "Pending".
-   This normalises both sides before comparing.
+   ROBUST COLUMN & FIELD RESOLUTION
    ===================================================================== */
 function normKey(k) { return String(k).toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
 function indexRow(row) {
+  if (!row || typeof row !== "object") return {};
   if (!row.__idx) {
     const idx = {};
     Object.keys(row).forEach(k => { idx[normKey(k)] = k; });
@@ -248,20 +245,33 @@ function indexRow(row) {
   return row.__idx;
 }
 
-function pick(row, candidates) {
-  if (!row || typeof row !== "object") return { value: undefined, column: null };
+/**
+ * Checks if key exists on object regardless of whether the value is empty or null.
+ */
+function findColumnKey(row, candidates) {
+  if (!row || typeof row !== "object") return null;
   const idx = indexRow(row);
   for (const c of candidates) {
     const real = idx[normKey(c)];
-    if (real !== undefined && row[real] !== null && String(row[real]).trim() !== "") {
-      return { value: String(row[real]).trim(), column: real };
-    }
+    if (real !== undefined) return real;
   }
-  return { value: undefined, column: null };
+  return null;
 }
 
-/* If none of the known names match, sniff for anything status-shaped. */
+/**
+ * Returns string value for first candidate matching key present in row.
+ */
+function getFieldValue(row, candidates) {
+  if (!row || typeof row !== "object") return "";
+  const realKey = findColumnKey(row, candidates);
+  if (realKey && row[realKey] != null) {
+    return String(row[realKey]).trim();
+  }
+  return "";
+}
+
 function sniffStatusColumn(row) {
+  if (!row || typeof row !== "object") return null;
   const idx = indexRow(row);
   for (const nk of Object.keys(idx)) {
     if (nk.includes("paid") || nk.includes("paymentstatus") || nk.includes("feestatus")) return idx[nk];
@@ -272,25 +282,25 @@ function sniffStatusColumn(row) {
   return null;
 }
 
-const ID_KEYS     = ["Username","ID","Competitor ID","User ID","Reg ID","Registration ID","Roll No","Roll Number","Admission No"];
-const NAME_KEYS   = ["Name","Full Name","Competitor Name","Student Name","Participant Name"];
-const GRADE_KEYS  = ["Grade","Class","Grade/Class","Std","Standard","Year"];
-const EVENT_KEYS  = ["Events","Selected Events","SelectedEvents","Event","Event List","Events Selected"];
-const STATUS_KEYS = ["Payment Status","PaymentStatus","Fee Status","FeeStatus","Status","Payment","Paid","Payment Done","Fee Paid"];
-const AMOUNT_KEYS = ["Amount","Fee","Total Fee","Total Amount","Amount Due","AmountDue","Total"];
+const ID_KEYS     = ["Username","ID","Competitor ID","User ID","Reg ID","Registration ID","Roll No","Roll Number","Admission No","id"];
+const NAME_KEYS   = ["Name","Full Name","Competitor Name","Student Name","Participant Name","name"];
+const GRADE_KEYS  = ["Grade","Class","Grade/Class","Std","Standard","Year","grade"];
+const EVENT_KEYS  = ["Events","Selected Events","SelectedEvents","Event","Event List","Events Selected","events"];
+const STATUS_KEYS = ["Payment Status","PaymentStatus","Fee Status","FeeStatus","Status","Payment","Paid","Payment Done","Fee Paid","paymentStatus","status"];
+const AMOUNT_KEYS = ["Amount","Fee","Total Fee","Total Amount","Amount Due","AmountDue","Total","fee"];
 
 let DETECTED_STATUS_COL = null;
 let DETECTED_ID_COL = null;
 let DUPLICATE_IDS = [];
 
-function getRecordId(row)     { return pick(row, ID_KEYS).value    || "—"; }
-function getRecordName(row)   { return pick(row, NAME_KEYS).value  || "—"; }
-function getRecordGrade(row)  { return pick(row, GRADE_KEYS).value || "—"; }
-function getRecordEvents(row) { return pick(row, EVENT_KEYS).value || "—"; }
+function getRecordId(row)     { return getFieldValue(row, ID_KEYS)     || "—"; }
+function getRecordName(row)   { return getFieldValue(row, NAME_KEYS)   || "—"; }
+function getRecordGrade(row)  { return getFieldValue(row, GRADE_KEYS)  || "—"; }
+function getRecordEvents(row) { return getFieldValue(row, EVENT_KEYS)  || "—"; }
 
 function getSheetStatus(row) {
-  const hit = pick(row, STATUS_KEYS);
-  if (hit.value !== undefined) return hit.value;
+  const val = getFieldValue(row, STATUS_KEYS);
+  if (val !== "") return val;
   if (DETECTED_STATUS_COL && row[DETECTED_STATUS_COL] != null) return String(row[DETECTED_STATUS_COL]).trim();
   return "";
 }
@@ -305,12 +315,13 @@ function isStatusPaid(s) {
 }
 
 /* =====================================================================
-   EVENT / FEE PARSING (handles , ; | / and newline separators)
+   EVENT / FEE PARSING
    ===================================================================== */
 function splitEvents(str) {
   if (!str || str === "—") return [];
   return String(str).split(/[,;|\n\/]+/).map(e => e.trim()).filter(e => e.length > 0);
 }
+
 function calculateFeeFromEvents(eventsStr) {
   const n = splitEvents(eventsStr).length;
   if (n === 1) return 100;
@@ -320,30 +331,24 @@ function calculateFeeFromEvents(eventsStr) {
   if (n >= 5)  return 350;
   return 0;
 }
-/* The sheet has a real Fee column, written at registration time. That is what
-   the student was actually charged, so it wins. The event-count ladder is only
-   a fallback for rows where Fee is blank. The old code had this backwards and
-   would silently report revenue the sheet never agreed with. */
+
 function getSheetFee(row) {
-  const explicit = pick(row, AMOUNT_KEYS).value;
-  if (explicit === undefined) return null;
+  const explicit = getFieldValue(row, AMOUNT_KEYS);
+  if (!explicit) return null;
   const parsed = parseFloat(explicit.replace(/[^0-9.]/g, ""));
   return isNaN(parsed) ? null : parsed;
 }
+
 function getNumericAmount(row) {
   const sheetFee = getSheetFee(row);
   if (sheetFee !== null && sheetFee > 0) return sheetFee;
   return calculateFeeFromEvents(getRecordEvents(row));
 }
+
 function calculateAmount(row) { return CURRENCY_SYMBOL + getNumericAmount(row); }
 
 /* =====================================================================
    PENDING-WRITE QUEUE
-   localStorage is now only an outbox for writes the sheet has not yet
-   confirmed. It is NOT a parallel source of truth. As soon as the sheet
-   reports the same value, the local entry is deleted. That also fixes
-   the old bug where "Mark Pending" could never stick, because a sheet
-   value of Paid unconditionally beat the local override.
    ===================================================================== */
 function getPending() { return lsGet(PENDING_KEY, {}); }
 function setPending(p) { return lsSet(PENDING_KEY, p); }
@@ -365,7 +370,6 @@ function clearConfirmed(id) {
   if (p[id]) { delete p[id]; setPending(p); }
 }
 
-/* One-time migration from the old cache so nothing already marked is lost. */
 (function migrateLegacy() {
   const legacy = lsGet(LEGACY_KEY, null);
   if (!legacy || typeof legacy !== "object") return;
@@ -396,11 +400,11 @@ function reconcile(data) {
 
     if (queued) {
       if (queued.status === sheetNorm) {
-        clearConfirmed(id);                 // sheet caught up, drop the outbox entry
+        clearConfirmed(id);
         row.computedStatus = sheetNorm;
         row.syncState = "confirmed";
       } else {
-        row.computedStatus = queued.status; // show optimistic value
+        row.computedStatus = queued.status;
         row.syncState = "unsynced";
         row.syncNote = queued.lastError ? ("not saved: " + queued.lastError) : "not yet confirmed by sheet";
       }
@@ -413,8 +417,7 @@ function reconcile(data) {
 }
 
 /* =====================================================================
-   HTML ESCAPING (old code injected raw sheet values into innerHTML and
-   into an inline onclick string; an apostrophe in a name broke the row)
+   HTML ESCAPING
    ===================================================================== */
 const ESC = { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" };
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ESC[c]); }
@@ -455,8 +458,6 @@ function loadRegistrations(opts) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-dim);">Loading...</td></tr>';
   }
 
-  // Cache-buster: without it the browser (and Google's edge) can hand back
-  // a stale copy of the registrations, which looks exactly like "no memory".
   const url = REGISTRATION_API_URL + "?action=registrations&_=" + Date.now();
 
   fetch(url, { cache: "no-store", redirect: "follow" })
@@ -474,17 +475,13 @@ function loadRegistrations(opts) {
       if (!Array.isArray(fetched)) throw new Error("JSON shape not recognised. Expected an array or {data:[...]}.");
 
       if (fetched.length > 0) {
-        const first = fetched[0];
-        DETECTED_STATUS_COL = pick(first, STATUS_KEYS).column || sniffStatusColumn(first);
-        DETECTED_ID_COL = pick(first, ID_KEYS).column;
+        const sampleRow = fetched.find(r => r && typeof r === "object" && Object.keys(r).length > 0) || fetched[0];
+        DETECTED_STATUS_COL = findColumnKey(sampleRow, STATUS_KEYS) || sniffStatusColumn(sampleRow);
+        DETECTED_ID_COL = findColumnKey(sampleRow, ID_KEYS);
       }
 
       rawRegistrations = reconcile(fetched);
 
-      /* DUPLICATE ID CHECK.
-         The backend's updateRegistrationStatus() breaks on the first matching
-         row, so a duplicate ID makes the second student permanently unmarkable.
-         Surfacing this is the whole point of the panel. */
       const idSeen = {}, dupes = [];
       rawRegistrations.forEach(r => {
         const id = getRecordId(r);
@@ -495,7 +492,6 @@ function loadRegistrations(opts) {
       });
       DUPLICATE_IDS = dupes;
 
-      /* Fee reconciliation: sheet value vs the event-count ladder. */
       let feeMismatch = 0, feeMissing = 0;
       rawRegistrations.forEach(r => {
         const sheetFee = getSheetFee(r);
@@ -521,14 +517,10 @@ function loadRegistrations(opts) {
         dStatusCol: DETECTED_STATUS_COL || "NOT FOUND — check that doGet returns the PaymentStatus column",
         dIdCol: DETECTED_ID_COL || "NOT FOUND — rows cannot be matched to writes",
         dDupes: dupes.length === 0 ? "none" : dupes.join(", "),
-        dFee: feeMismatch + " row(s) where the sheet Fee disagrees with the event-count ladder, "
-              + feeMissing + " row(s) with no Fee value (ladder used)",
+        dFee: feeMismatch + " row(s) where the sheet Fee disagrees with event count, "
+              + feeMissing + " row(s) with no Fee value (calculated fallback used)",
         dPost: lastPostNote
       });
-      if (dupes.length > 0) {
-        document.getElementById("diagBody").hidden = false;
-        document.getElementById("diagCaret").textContent = "hide details ▴";
-      }
 
       if (rawRegistrations.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-dim);">No registrations found.</td></tr>';
@@ -543,7 +535,7 @@ function loadRegistrations(opts) {
     })
     .catch(err => {
       console.error("Error loading registrations:", err);
-      setDiag("fail", "Cannot read from the backend. This is a BACKEND / deployment problem, not the page.", {
+      setDiag("fail", "Cannot read from the backend.", {
         dGet: "FAILED — " + err.message,
         dRows: "—", dCols: "—", dStatusCol: "—", dIdCol: "—", dPost: lastPostNote
       });
@@ -606,13 +598,15 @@ function saveFilterSessionState() {
     allowRevert: document.getElementById("allowRevert").checked
   });
 }
+
 function restoreFilterSessionState() {
   const s = ssGet(FILTER_KEY, null);
   if (!s) return;
   const setIfPresent = (elId, val) => {
     const el = document.getElementById(elId);
     if (val === undefined || !el) return;
-    if (el.tagName === "SELECT" && !el.querySelector('option[value="' + CSS.escape(String(val)) + '"]')) return;
+    const escapedVal = window.CSS && CSS.escape ? CSS.escape(String(val)) : String(val);
+    if (el.tagName === "SELECT" && !el.querySelector('option[value="' + escapedVal + '"]')) return;
     el.value = val;
   };
   setIfPresent("statusFilter", s.statusFilter);
@@ -659,7 +653,6 @@ function applyFilterAndSort() {
     const isPaid = isStatusPaid(row.computedStatus);
     const grade = getRecordGrade(row);
 
-    // Exact token match, so "Quiz" no longer also matches "Quiz Bowl".
     const eventTokens = splitEvents(getRecordEvents(row)).map(e => e.toLowerCase());
     const matchEvent = eventFilter === "ALL" || eventTokens.includes(eventFilter.toLowerCase());
     const matchGrade = gradeFilter === "ALL" || grade.toLowerCase() === gradeFilter.toLowerCase();
@@ -690,7 +683,7 @@ function applyFilterAndSort() {
 }
 
 /* =====================================================================
-   RENDER (event delegation, no inline onclick with interpolated data)
+   RENDER
    ===================================================================== */
 function renderTable(records, allowRevert) {
   const tbody = document.getElementById("regTableBody");
@@ -704,14 +697,13 @@ function renderTable(records, allowRevert) {
     const hasId = recId && recId !== "—";
     const isPaid = isStatusPaid(row.computedStatus);
     const unsynced = row.syncState === "unsynced";
-
     const isDupe = DUPLICATE_IDS.indexOf(recId) !== -1;
 
     let action;
     if (isDupe) {
-      action = '<button class="btn btn-done" disabled title="Another row shares this ID. The backend updates only the first match, so marking this would write to the wrong student.">Duplicate ID</button>';
+      action = '<button class="btn btn-done" disabled title="Duplicate ID found in sheet">Duplicate ID</button>';
     } else if (!hasId) {
-      action = '<button class="btn btn-done" disabled title="This row has no ID column, so it cannot be written back">No ID</button>';
+      action = '<button class="btn btn-done" disabled title="Missing ID column">No ID</button>';
     } else if (!isPaid) {
       action = '<button class="btn btn-pay" data-id="' + esc(recId) + '" data-target="Paid">Mark Paid</button>';
     } else if (allowRevert) {
@@ -737,7 +729,7 @@ function renderTable(records, allowRevert) {
 }
 
 /* =====================================================================
-   WRITE
+   WRITE HANDLERS
    ===================================================================== */
 let verifyTimer = null;
 function scheduleVerify() {
@@ -766,9 +758,13 @@ function postStatus(id, targetStatus) {
     let parsed = null;
     try { parsed = JSON.parse(resp.text); } catch (e) {}
     if (parsed && (parsed.success === true || parsed.status === "success" || parsed.result === "success")) {
-      return { ok: true, note: "sheet accepted the update" };
+      return { 
+        ok: true, 
+        note: "sheet accepted the update", 
+        registrations: Array.isArray(parsed.registrations) ? parsed.registrations : null 
+      };
     }
-    if (parsed) return { ok: false, note: "backend replied without success: " + resp.text.slice(0, 120) };
+    if (parsed) return { ok: false, note: "backend error: " + (parsed.error || resp.text.slice(0, 120)) };
     return { ok: false, note: "backend returned non-JSON: " + resp.text.slice(0, 120) };
   });
 }
@@ -779,7 +775,7 @@ function togglePayment(id, targetStatus, btn) {
   if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
 
   queueWrite(id, targetStatus);
-  const item = rawRegistrations.find(r => getRecordId(r) === String(id));
+  const item = rawRegistrations.find(r => String(getRecordId(r)).trim().toLowerCase() === String(id).trim().toLowerCase());
   if (item) { item.computedStatus = targetStatus; item.syncState = "unsynced"; item.syncNote = "saving..."; }
   calculateCollections(rawRegistrations);
   applyFilterAndSort();
@@ -789,13 +785,20 @@ function togglePayment(id, targetStatus, btn) {
       markWriteResult(id, r.ok, r.note);
       lastPostNote = (r.ok ? "OK — " : "FAILED — ") + r.note;
       document.getElementById("dPost").textContent = lastPostNote;
-      scheduleVerify();
+      
+      if (r.ok && r.registrations) {
+        rawRegistrations = reconcile(r.registrations);
+        calculateCollections(rawRegistrations);
+        applyFilterAndSort();
+      } else {
+        scheduleVerify();
+      }
     })
     .catch(err => {
       markWriteResult(id, false, err.message);
       lastPostNote = "FAILED — " + err.message;
       document.getElementById("dPost").textContent = lastPostNote;
-      setDiag("fail", "The sheet write failed. Changes below are local only and will vanish on another device.", { dPost: lastPostNote });
+      setDiag("fail", "The sheet write failed.", { dPost: lastPostNote });
       document.getElementById("diagBody").hidden = false;
       applyFilterAndSort();
     });
