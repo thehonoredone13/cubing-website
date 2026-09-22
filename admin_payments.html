@@ -315,11 +315,12 @@ function isStatusPaid(s) {
 }
 
 /* =====================================================================
-   EVENT / FEE PARSING
+   EVENT / FEE PARSING (FIXED REGEX)
    ===================================================================== */
 function splitEvents(str) {
   if (!str || str === "—") return [];
-  return String(str).split(/[,;|\n\/]+/).map(e => e.trim()).filter(e => e.length > 0);
+  // Excluded '/' to prevent splitting titles like '3x3x3 / 4x4x4 Speedcube'
+  return String(str).split(/[,;|\n]+/).map(e => e.trim()).filter(e => e.length > 0);
 }
 
 function calculateFeeFromEvents(eventsStr) {
@@ -586,7 +587,7 @@ function calculateCollections(data) {
 }
 
 /* =====================================================================
-   FILTERS
+   FILTERS (FIXED RESTORATION)
    ===================================================================== */
 function saveFilterSessionState() {
   ssSet(FILTER_KEY, {
@@ -605,8 +606,10 @@ function restoreFilterSessionState() {
   const setIfPresent = (elId, val) => {
     const el = document.getElementById(elId);
     if (val === undefined || !el) return;
-    const escapedVal = window.CSS && CSS.escape ? CSS.escape(String(val)) : String(val);
-    if (el.tagName === "SELECT" && !el.querySelector('option[value="' + escapedVal + '"]')) return;
+    if (el.tagName === "SELECT") {
+      const exists = Array.from(el.options).some(opt => opt.value === String(val));
+      if (!exists) return;
+    }
     el.value = val;
   };
   setIfPresent("statusFilter", s.statusFilter);
@@ -729,7 +732,7 @@ function renderTable(records, allowRevert) {
 }
 
 /* =====================================================================
-   WRITE HANDLERS
+   WRITE HANDLERS (FIXED CLEARING & ID MATCHING)
    ===================================================================== */
 let verifyTimer = null;
 function scheduleVerify() {
@@ -783,6 +786,9 @@ function togglePayment(id, targetStatus, btn) {
   postStatus(id, targetStatus)
     .then(r => {
       markWriteResult(id, r.ok, r.note);
+      if (r.ok) {
+        clearConfirmed(id); // Clean queue on write confirmation
+      }
       lastPostNote = (r.ok ? "OK — " : "FAILED — ") + r.note;
       document.getElementById("dPost").textContent = lastPostNote;
       
@@ -813,7 +819,10 @@ function retryUnsynced() {
 
   Promise.all(ids.map(id =>
     postStatus(id, p[id].status)
-      .then(r => markWriteResult(id, r.ok, r.note))
+      .then(r => {
+        markWriteResult(id, r.ok, r.note);
+        if (r.ok) clearConfirmed(id);
+      })
       .catch(e => markWriteResult(id, false, e.message))
   )).then(() => {
     btn.disabled = false; btn.textContent = "⟳ Retry unconfirmed writes";
