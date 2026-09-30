@@ -284,7 +284,10 @@ function getFieldValue(row, candidates) {
 
 function sniffStatusColumn(row) {
   if (!row || typeof row !== "object") return null;
-  const idx = indexRow(row);
+  const idx = {};
+  Object.entries(indexRow(row)).forEach(([nk, real]) => {
+    if (nk !== "computedstatus" && nk !== "syncstate" && nk !== "syncnote") idx[nk] = real;
+  });
   for (const nk of Object.keys(idx)) {
     if (nk.includes("paid") || nk.includes("paymentstatus") || nk.includes("feestatus")) return idx[nk];
   }
@@ -550,6 +553,9 @@ function loadRegistrations(opts) {
         DETECTED_ID_COL = null;
       }
 
+      // Capture the backend's real columns BEFORE reconcile() adds computedStatus/syncState
+      const cols = fetched.length ? Object.keys(fetched[0]).join(", ") : "(none)";
+
       rawRegistrations = reconcile(fetched);
 
       const idSeen = {}, dupes = [];
@@ -570,7 +576,6 @@ function loadRegistrations(opts) {
         if (ladder > 0 && sheetFee !== ladder) feeMismatch++;
       });
 
-      const cols = fetched.length ? Object.keys(fetched[0]).join(", ") : "(none)";
       let level = "ok";
       let headline = "Connected. Reading payment status from the sheet.";
       if (fetched.length === 0) {
