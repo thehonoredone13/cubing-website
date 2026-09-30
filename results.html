@@ -14,6 +14,8 @@
     --cube-red:#E6402A;
     --line:#D9D5C8;
     --text-dim:#6B7280;
+    --qualify-green:#1F9D55;
+    --qualify-bg:#E6F5EC;
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{
@@ -61,7 +63,7 @@
   .btn-solid-red:hover{box-shadow:0 6px 16px rgba(230,64,42,0.35);}
   .nav-cta{display:flex;gap:10px;align-items:center;}
   .results-caret{font-size:11px;opacity:.6;margin-left:2px;}
-  
+
   /* ---------- PAGE HEADER ---------- */
   .page-header{
     background:radial-gradient(120% 140% at 15% 0%, #202749 0%, var(--ink) 55%, #0C1022 100%);
@@ -91,7 +93,7 @@
   }
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--cube-red);animation:pulse 1.4s infinite;}
   @keyframes pulse{0%{opacity:1;}50%{opacity:0.3;}100%{opacity:1;}}
-  
+
   /* ---------- ROUND TABS ---------- */
   .results-section{padding:40px 0 24px;}
   .age-group-tabs{display:flex;gap:8px;margin-bottom:14px;}
@@ -110,7 +112,14 @@
   .round-tab.active::after{
     content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--cube-red);
   }
-  
+
+  /* ---------- ADVANCEMENT NOTE ---------- */
+  .advance-note{
+    display:none;align-items:center;gap:8px;margin:-10px 0 14px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--qualify-green);font-weight:600;
+  }
+  .advance-note .swatch{width:12px;height:12px;border-radius:3px;background:var(--qualify-bg);border:2px solid var(--qualify-green);}
+
   /* ---------- TABLE ---------- */
   .results-table-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;}
   table{width:100%;border-collapse:collapse;font-size:14px;}
@@ -126,6 +135,18 @@
   .rank-cell{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--text-dim);width:44px;}
   tr.podium .rank-cell{color:var(--ink);}
   tr.podium td{font-weight:600;}
+
+  /* Qualified-for-next-round rows */
+  tr.qualified td{background:var(--qualify-bg);}
+  tr.qualified td:first-child{box-shadow:inset 4px 0 0 var(--qualify-green);}
+  tr.qualified .rank-cell{color:var(--qualify-green);}
+  tr.awaiting strong{color:var(--text-dim);font-weight:500;}
+  .q-tag{
+    display:inline-block;margin-left:8px;padding:1px 6px;border-radius:4px;
+    font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;
+    background:var(--qualify-green);color:#fff;vertical-align:middle;
+  }
+
   .medal{
     display:inline-flex;align-items:center;justify-content:center;
     width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:700;color:#fff;margin-right:6px;
@@ -135,7 +156,7 @@
   .medal.bronze{background:#A6643A;}
   .grade-tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);margin-left:6px;}
   .empty-msg{padding:24px;text-align:center;color:var(--text-dim);font-size:14px;}
-  
+
   /* ---------- KNOCKOUT BRACKET ---------- */
   .bracket-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;padding:32px 24px;overflow-x:auto;}
   .bracket{display:flex;gap:40px;min-width:740px;align-items:center;}
@@ -213,6 +234,7 @@
   <div class="round-tabs" id="roundTabsContainer">
     <!-- Dynamically populated round tabs -->
   </div>
+  <div class="advance-note" id="advanceNote"></div>
   <div class="results-table-wrap" id="resultsTableWrap">
     <table id="resultsTable">
       <thead id="resultsTableHead">
@@ -237,7 +259,11 @@
 <script>
   // DEPLOYED GOOGLE APPS SCRIPT WEB APP URL
   const RESULTS_API_URL = "https://script.google.com/macros/s/AKfycbwRzpzNMKGX-Cd9Xoosy8WNbwj6NiVGAzoD6AJgCH-dSb39CQvDBbthAO10rzO7Hllq/exec";
-  
+  // Registrations web app (the admin_mark_paid script). Paste its /exec URL here.
+  const REGISTRATIONS_API_URL = "PASTE_REGISTRATIONS_EXEC_URL_HERE";
+  const PARTICIPANTS_POLL_MS = 60000; // roster changes rarely; don't hammer the script
+
+  // Default round structure per event
   const EVENT_ROUNDS = {
     "3x3": ["First Round", "Second Round", "Final"],
     "2x2": ["First Round", "Second Round", "Final"],
@@ -245,40 +271,90 @@
     "Megaminx": ["Final"],
     "4x4": ["Final"]
   };
-  
-  const KNOCKOUT_EVENTS = ["3x3", "2x2"];
+
+  // Age-group-specific overrides: 2x2 Grades 7-9 has only First Round -> Final
+  const ROUNDS_OVERRIDE = {
+    "2x2": { "7-9": ["First Round", "Final"] }
+  };
+
+  // How many competitors advance OUT of each round (event -> age group -> round -> count)
+  // Rounds not listed (all Finals, Megaminx, 4x4) get podium-only highlighting.
+  const ADVANCEMENT = {
+    "3x3": {
+      "5-6": { "First Round": 32, "Second Round": 4 },
+      "7-9": { "First Round": 32, "Second Round": 8 }
+    },
+    "2x2": {
+      "5-6": { "First Round": 16, "Second Round": 4 },
+      "7-9": { "First Round": 8 }
+    },
+    "Pyraminx": {
+      "5-6": { "First Round": 10 },
+      "7-9": { "First Round": 10 }
+    }
+  };
+
+  // Knockout Finals (event -> age group -> bracket size). Every other round is a ranking.
+  //   3x3 Grades 5-6: 4-player bracket   3x3 Grades 7-9: 8-player bracket
+  //   2x2 Grades 5-6: 4-player bracket   (2x2 Grades 7-9 Final is ranked)
+  const KNOCKOUT_BRACKETS = {
+    "3x3": { "5-6": 4, "7-9": 8 },
+    "2x2": { "5-6": 4 }
+  };
   const KNOCKOUT_ROUND_NAME = "Final";
+  function getBracketSize(eventName, ageGroup) {
+    return (KNOCKOUT_BRACKETS[eventName] && KNOCKOUT_BRACKETS[eventName][ageGroup]) || 0;
+  }
 
   const AGE_GROUP_EVENTS = {
-    "3x3": ["6-7", "8-9"],
-    "2x2": ["6-7", "8-9"],
-    "Pyraminx": ["6-7", "8-9"],
-    "Megaminx": ["8-9"],
-    "4x4": ["8-9"]
+    "3x3": ["5-6", "7-9"],
+    "2x2": ["5-6", "7-9"],
+    "Pyraminx": ["5-6", "7-9"],
+    "Megaminx": ["7-9"],
+    "4x4": ["7-9"]
   };
-  
+
+  // Grade numbers per group. Matches "Grade 5", "5", "G5" etc.
   const AGE_GROUP_GRADES = {
-    "6-7": ["Grade 6", "Grade 7"],
-    "8-9": ["Grade 8", "Grade 9"]
+    "5-6": [5, 6],
+    "7-9": [7, 8, 9]
   };
-  
+
   const AGE_GROUP_LABELS = {
-    "6-7": "Grades 6–7",
-    "8-9": "Grades 8–9"
+    "5-6": "Grades 5–6",
+    "7-9": "Grades 7–9"
   };
-  
-  const BRACKET_SIZE = { "6-7": 4, "8-9": 8 };
+
 
   let allResultsData = [];
+  let allParticipants = [];
   let currentEvent = "3x3";
   let currentRound = "First Round";
-  let currentAgeGroup = "8-9";
+  let currentAgeGroup = "7-9";
+
+  function getRounds(eventName, ageGroup) {
+    const override = ROUNDS_OVERRIDE[eventName] && ROUNDS_OVERRIDE[eventName][ageGroup];
+    return override || EVENT_ROUNDS[eventName] || ["Final"];
+  }
+
+  function getAdvanceCount(eventName, ageGroup, roundName) {
+    const ev = ADVANCEMENT[eventName];
+    if (!ev || !ev[ageGroup]) return 0;
+    return ev[ageGroup][roundName] || 0;
+  }
+
+  function getNextRoundName(eventName, ageGroup, roundName) {
+    const rounds = getRounds(eventName, ageGroup);
+    const idx = rounds.indexOf(roundName);
+    return idx >= 0 && idx < rounds.length - 1 ? rounds[idx + 1] : null;
+  }
 
   function fetchResults() {
     fetch(RESULTS_API_URL)
       .then(res => res.json())
       .then(data => {
         allResultsData = data.results || [];
+        if (Array.isArray(data.participants)) allParticipants = data.participants;
         renderPage();
       })
       .catch(err => {
@@ -288,12 +364,12 @@
 
   function switchEvent(eventName) {
     currentEvent = eventName;
-    currentRound = EVENT_ROUNDS[eventName][0];
 
-    const groupsHere = AGE_GROUP_EVENTS[eventName] || ["8-9"];
+    const groupsHere = AGE_GROUP_EVENTS[eventName] || ["7-9"];
     if (!groupsHere.includes(currentAgeGroup)) {
       currentAgeGroup = groupsHere[0];
     }
+    currentRound = getRounds(eventName, currentAgeGroup)[0];
 
     document.querySelectorAll(".event-pill").forEach(btn => {
       btn.classList.toggle("current", btn.innerText.trim() === eventName);
@@ -308,6 +384,10 @@
 
   function switchAgeGroup(group) {
     currentAgeGroup = group;
+    const rounds = getRounds(currentEvent, group);
+    if (!rounds.includes(currentRound)) {
+      currentRound = rounds[0];
+    }
     renderPage();
   }
 
@@ -320,7 +400,7 @@
 
   function renderAgeGroupTabs() {
     const container = document.getElementById("ageGroupTabsContainer");
-    const groups = AGE_GROUP_EVENTS[currentEvent] || ["8-9"];
+    const groups = AGE_GROUP_EVENTS[currentEvent] || ["7-9"];
     if (groups.length <= 1) {
       container.innerHTML = "";
       return;
@@ -381,7 +461,7 @@
 
   function renderRoundTabs() {
     const tabsContainer = document.getElementById("roundTabsContainer");
-    const rounds = EVENT_ROUNDS[currentEvent] || ["Final"];
+    const rounds = getRounds(currentEvent, currentAgeGroup);
     tabsContainer.innerHTML = rounds.map(round => `
       <button class="round-tab ${round === currentRound ? 'active' : ''}" onclick="switchRound('${round}')">
         ${round}
@@ -389,27 +469,164 @@
     `).join("");
   }
 
-  function isKnockoutView() {
-    return KNOCKOUT_EVENTS.includes(currentEvent) && currentRound === KNOCKOUT_ROUND_NAME;
+  function isKnockoutRound(eventName, ageGroup, roundName) {
+    return roundName === KNOCKOUT_ROUND_NAME && getBracketSize(eventName, ageGroup) > 0;
   }
 
-  function deduplicateEntries(rows) {
-    const uniqueMap = new Map();
-    rows.forEach(r => {
-      const key = (r.CompetitorID || r.Name || "").toString().trim().toLowerCase();
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, r);
-      } else {
-        const existing = uniqueMap.get(key);
-        const rRank = parseInt(r.Rank) || 999;
-        const exRank = parseInt(existing.Rank) || 999;
-        if (rRank < exRank) {
-          uniqueMap.set(key, r);
-        }
-      }
-    });
-    return Array.from(uniqueMap.values());
+  function isKnockoutView() {
+    return isKnockoutRound(currentEvent, currentAgeGroup, currentRound);
   }
+
+  function isTwoSolve(eventName) {
+    return eventName === "Megaminx" || eventName === "4x4";
+  }
+
+  function gradeNumber(grade) {
+    const n = parseInt(String(grade || "").replace(/[^0-9]/g, ""), 10);
+    return isNaN(n) ? null : n;
+  }
+
+  function inAgeGroup(row, ageGroup) {
+    return (AGE_GROUP_GRADES[ageGroup] || []).includes(gradeNumber(row.Grade));
+  }
+
+  function idKey(r) { return (r.CompetitorID || "").toString().trim().toLowerCase(); }
+  function nameKey(r) { return (r.Name || "").toString().trim().toLowerCase(); }
+
+  function solvesOf(row, eventName) {
+    const s = [row.Solve1, row.Solve2];
+    if (!isTwoSolve(eventName)) s.push(row.Solve3);
+    return s;
+  }
+
+  function isBlank(v) {
+    return v === undefined || v === null || String(v).trim() === "" || String(v).trim() === "-";
+  }
+
+  function hasAnyTime(row) {
+    return [row.Solve1, row.Solve2, row.Solve3, row.Best, row.Average].some(v => !isBlank(v));
+  }
+
+  // Best single: the sheet's Best, else the fastest entered solve
+  function bestOf(row, eventName) {
+    const b = parseTime(row.Best);
+    if (b !== Infinity) return b;
+    return Math.min(...solvesOf(row, eventName).map(parseTime));
+  }
+
+  // Tiebreak: average for Ao3 events, the slower solve for 2-solve events
+  function tiebreakOf(row, eventName) {
+    if (isTwoSolve(eventName)) {
+      const t = solvesOf(row, eventName).map(parseTime).sort((x, y) => x - y);
+      return t[1];
+    }
+    return parseTime(row.Average);
+  }
+
+  function cmpNum(x, y) {
+    if (x === y) return 0;
+    return x < y ? -1 : 1;
+  }
+
+  function deduplicateEntries(rows, eventName) {
+    const byKey = new Map();
+    rows.forEach(r => {
+      const key = idKey(r) || nameKey(r);
+      const existing = byKey.get(key);
+      if (!existing) { byKey.set(key, r); return; }
+      const c = cmpNum(bestOf(r, eventName), bestOf(existing, eventName));
+      if (c < 0 || (c === 0 && hasAnyTime(r) && !hasAnyTime(existing))) byKey.set(key, r);
+    });
+    return Array.from(byKey.values());
+  }
+
+  function participantEvents(p) {
+    const raw = p.Events !== undefined ? p.Events : p.Event;
+    const list = Array.isArray(raw) ? raw : String(raw || "").split(/[,;|]/);
+    return list.map(e => String(e).trim().toLowerCase()).filter(Boolean);
+  }
+
+  // Who should appear in this round even before any times are entered
+  function expectedEntrants(eventName, ageGroup, roundName) {
+    const rounds = getRounds(eventName, ageGroup);
+    const idx = rounds.indexOf(roundName);
+    if (idx > 0) {
+      // Later rounds: everyone who qualified from the previous round
+      return getRankedRound(eventName, ageGroup, rounds[idx - 1]).qualified;
+    }
+    // First round: registered participants for this event + age group (if the API sends them)
+    const ev = eventName.toLowerCase();
+    return allParticipants.filter(p =>
+      p && p.Name && inAgeGroup(p, ageGroup) && participantEvents(p).includes(ev)
+    );
+  }
+
+  // Full ranking for a round: result rows + blank rows for anyone not yet timed.
+  // Order: best single, then average. Identical best + average share a rank.
+  function getRankedRound(eventName, ageGroup, roundName) {
+    const results = deduplicateEntries(
+      allResultsData.filter(r => r.Event === eventName && r.Round === roundName && inAgeGroup(r, ageGroup)),
+      eventName
+    );
+
+    const ids = new Set(results.map(idKey).filter(Boolean));
+    const names = new Set(results.map(nameKey).filter(Boolean));
+    const placeholders = [];
+    expectedEntrants(eventName, ageGroup, roundName).forEach(p => {
+      const id = idKey(p), nm = nameKey(p);
+      if ((id && ids.has(id)) || (nm && names.has(nm))) return;
+      if (id) ids.add(id);
+      if (nm) names.add(nm);
+      placeholders.push({ Name: p.Name, Grade: p.Grade, CompetitorID: p.CompetitorID });
+    });
+
+    const rows = results.concat(placeholders).map(r => ({
+      row: r,
+      best: bestOf(r, eventName),
+      tie: tiebreakOf(r, eventName),
+      timed: hasAnyTime(r)
+    }));
+
+    rows.sort((a, b) =>
+      cmpNum(a.best, b.best) ||
+      cmpNum(a.tie, b.tie) ||
+      (a.timed === b.timed ? 0 : (a.timed ? -1 : 1)) ||
+      nameKey(a.row).localeCompare(nameKey(b.row))
+    );
+
+    let prev = null;
+    rows.forEach((r, i) => {
+      if (r.best === Infinity) { r.rank = null; return; }
+      r.rank = (prev && prev.best === r.best && prev.tie === r.tie) ? prev.rank : i + 1;
+      prev = r;
+    });
+
+    const advanceCount = getAdvanceCount(eventName, ageGroup, roundName);
+    const hasNext = !!getNextRoundName(eventName, ageGroup, roundName);
+    rows.forEach(r => {
+      r.qualified = hasNext && advanceCount > 0 && r.rank !== null && r.rank <= advanceCount;
+    });
+
+    return { rows, qualified: rows.filter(r => r.qualified).map(r => r.row) };
+  }
+
+  function renderAdvanceNote(advanceCount, nextRound) {
+    const note = document.getElementById("advanceNote");
+    if (advanceCount > 0 && nextRound && !isKnockoutView()) {
+      note.style.display = "flex";
+      note.innerHTML = `<span class="swatch"></span>Top ${advanceCount} advance to the ${nextRound}`;
+    } else {
+      note.style.display = "none";
+      note.innerHTML = "";
+    }
+  }
+
+  function liveBadgeHtml(rows) {
+    return rows.some(r => r.Status === "Live")
+      ? `<span class="live-badge"><span class="live-dot"></span>LIVE</span>` : '';
+  }
+
+  function cell(v) { return isBlank(v) ? "" : v; }
 
   function renderTableAndStatus() {
     const statusContainer = document.getElementById("liveStatusContainer");
@@ -417,119 +634,120 @@
     const bracketWrap = document.getElementById("bracketWrap");
     const thead = document.getElementById("resultsTableHead");
 
-    const isTwoSolveEvent = (currentEvent === "Megaminx" || currentEvent === "4x4");
+    const twoSolve = isTwoSolve(currentEvent);
+    const advanceCount = getAdvanceCount(currentEvent, currentAgeGroup, currentRound);
+    const nextRound = getNextRoundName(currentEvent, currentAgeGroup, currentRound);
+    renderAdvanceNote(advanceCount, nextRound);
 
-    if (isTwoSolveEvent) {
-      thead.innerHTML = `
+    if (isKnockoutView()) {
+      // No de-duplication here: a finalist legitimately appears in both a Semifinal and the Championship
+      const knockoutPrefix = `${currentRound} — ${currentAgeGroup} — `;
+      const koRows = allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(knockoutPrefix) === 0);
+      statusContainer.innerHTML = liveBadgeHtml(koRows);
+      tableWrap.style.display = "none";
+      bracketWrap.style.display = "block";
+      const rounds = getRounds(currentEvent, currentAgeGroup);
+      const prevRound = rounds[rounds.indexOf(currentRound) - 1];
+      const seeds = prevRound ? getRankedRound(currentEvent, currentAgeGroup, prevRound).qualified : [];
+      renderBracket(koRows, currentAgeGroup, seeds, getBracketSize(currentEvent, currentAgeGroup));
+      return;
+    }
+
+    thead.innerHTML = twoSolve ? `
         <tr>
           <th>Rank</th>
           <th>Competitor</th>
           <th class="num">Solve 1</th>
           <th class="num">Solve 2</th>
           <th class="num">Best</th>
-        </tr>
-      `;
-    } else {
-      thead.innerHTML = `
+        </tr>` : `
         <tr>
           <th>Rank</th>
           <th>Competitor</th>
           <th class="num">Solve 1</th>
           <th class="num">Solve 2</th>
           <th class="num">Solve 3</th>
-          <th class="num">Average</th>
           <th class="num">Best</th>
-        </tr>
-      `;
-    }
-
-    const groupGrades = AGE_GROUP_GRADES[currentAgeGroup] || [];
-    const knockoutPrefix = `${currentRound} — ${currentAgeGroup} — `;
-    const rawFiltered = isKnockoutView()
-      ? allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(knockoutPrefix) === 0)
-      : allResultsData.filter(r => r.Event === currentEvent && r.Round === currentRound && groupGrades.includes(r.Grade));
-
-    const filtered = deduplicateEntries(rawFiltered);
-
-    if (filtered.length > 0) {
-      const isLive = filtered.some(r => r.Status === "Live");
-      statusContainer.innerHTML = isLive ? `<span class="live-badge"><span class="live-dot"></span>LIVE</span>` : '';
-    } else {
-      statusContainer.innerHTML = '';
-    }
-
-    if (isKnockoutView()) {
-      tableWrap.style.display = "none";
-      bracketWrap.style.display = "block";
-      renderBracket(filtered, currentAgeGroup);
-      return;
-    }
+          <th class="num">Average</th>
+        </tr>`;
 
     tableWrap.style.display = "block";
     bracketWrap.style.display = "none";
 
+    const { rows } = getRankedRound(currentEvent, currentAgeGroup, currentRound);
+    statusContainer.innerHTML = liveBadgeHtml(rows.map(r => r.row));
+
     const tbody = document.getElementById("resultsTableBody");
-    const colSpanCount = isTwoSolveEvent ? 5 : 7;
-    if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="${colSpanCount}" class="empty-msg">No results submitted for this round yet.</td></tr>`;
+    const colSpanCount = twoSolve ? 5 : 7;
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${colSpanCount}" class="empty-msg">No competitors for this round yet.</td></tr>`;
       return;
     }
-    
-    filtered.sort((a, b) => {
-      if (isTwoSolveEvent) {
-        const aBest = parseTime(a.Best);
-        const bBest = parseTime(b.Best);
-        if (aBest !== bBest) return aBest - bBest;
-      }
-      return (parseInt(a.Rank) || 999) - (parseInt(b.Rank) || 999);
-    });
 
-    tbody.innerHTML = filtered.map((row, idx) => {
-      const rankInt = idx + 1;
-      let podiumClass = rankInt <= 3 ? "podium" : "";
+    tbody.innerHTML = rows.map(r => {
+      const row = r.row;
+      const rowClasses = [
+        r.rank !== null && r.rank <= 3 ? "podium" : "",
+        r.qualified ? "qualified" : "",
+        !r.timed ? "awaiting" : ""
+      ].filter(Boolean).join(" ");
+      const qTag = r.qualified ? `<span class="q-tag">Q</span>` : "";
+
       let medalHtml = "";
-      if (rankInt === 1) medalHtml = `<span class="medal gold">1</span>`;
-      else if (rankInt === 2) medalHtml = `<span class="medal silver">2</span>`;
-      else if (rankInt === 3) medalHtml = `<span class="medal bronze">3</span>`;
-      
-      if (isTwoSolveEvent) {
-        return `
-          <tr class="${podiumClass}">
-            <td class="rank-cell">${medalHtml ? medalHtml : rankInt}</td>
+      if (r.rank === 1) medalHtml = `<span class="medal gold">1</span>`;
+      else if (r.rank === 2) medalHtml = `<span class="medal silver">2</span>`;
+      else if (r.rank === 3) medalHtml = `<span class="medal bronze">3</span>`;
+      const rankHtml = medalHtml || (r.rank !== null ? r.rank : "");
+
+      // Show Best from the sheet; if missing, show the fastest entered solve
+      let bestDisplay = cell(row.Best);
+      if (!bestDisplay && r.best !== Infinity) {
+        bestDisplay = solvesOf(row, currentEvent).find(s => parseTime(s) === r.best) || "";
+      }
+
+      const nameHtml = `
             <td>
               <strong>${row.Name}</strong>
               ${row.Grade ? `<span class="grade-tag">(${row.Grade})</span>` : ''}
-            </td>
-            <td class="num">${row.Solve1 || '-'}</td>
-            <td class="num">${row.Solve2 || '-'}</td>
-            <td class="num best">${row.Best || '-'}</td>
-          </tr>
-        `;
-      }
+              ${qTag}
+            </td>`;
 
+      if (twoSolve) {
+        return `
+          <tr class="${rowClasses}">
+            <td class="rank-cell">${rankHtml}</td>
+            ${nameHtml}
+            <td class="num">${cell(row.Solve1)}</td>
+            <td class="num">${cell(row.Solve2)}</td>
+            <td class="num best">${bestDisplay}</td>
+          </tr>`;
+      }
       return `
-        <tr class="${podiumClass}">
-          <td class="rank-cell">${medalHtml ? medalHtml : (row.Rank || '-')}</td>
-          <td>
-            <strong>${row.Name}</strong>
-            ${row.Grade ? `<span class="grade-tag">(${row.Grade})</span>` : ''}
-          </td>
-          <td class="num">${row.Solve1 || '-'}</td>
-          <td class="num">${row.Solve2 || '-'}</td>
-          <td class="num">${row.Solve3 || '-'}</td>
-          <td class="num best">${row.Average || '-'}</td>
-          <td class="num">${row.Best || '-'}</td>
-        </tr>
-      `;
+          <tr class="${rowClasses}">
+            <td class="rank-cell">${rankHtml}</td>
+            ${nameHtml}
+            <td class="num">${cell(row.Solve1)}</td>
+            <td class="num">${cell(row.Solve2)}</td>
+            <td class="num">${cell(row.Solve3)}</td>
+            <td class="num best">${bestDisplay}</td>
+            <td class="num">${cell(row.Average)}</td>
+          </tr>`;
     }).join("");
   }
 
+  // Handles "12.34", "1:05.20", "DNF", "DNS", blanks
   function parseTime(str) {
     if (str === undefined || str === null) return Infinity;
     const s = String(str).trim().toUpperCase();
     if (s === "" || s.includes("DNF") || s.includes("DNS")) return Infinity;
-    const v = parseFloat(s.replace(/[^0-9.]/g, ""));
-    return isNaN(v) ? Infinity : v;
+    const parts = s.replace(/[^0-9.:]/g, "").split(":");
+    let total = 0;
+    for (const p of parts) {
+      const v = parseFloat(p);
+      if (isNaN(v)) return Infinity;
+      total = total * 60 + v;
+    }
+    return total;
   }
 
   function headToHead(a, b) {
@@ -610,40 +828,74 @@
   }
 
   function singleSlotHtml(p) {
-    const chips = [p.Solve1, p.Solve2, p.Solve3].map(t => `<span class="solve-chip">${t || '-'}</span>`).join('');
+    const chips = [p.Solve1, p.Solve2, p.Solve3].map(t => `<span class="solve-chip">${t || '&nbsp;'}</span>`).join('');
     return `<div class="match-slot">
       <div class="slot-top">
         <span class="slot-name">${p.Name}</span>
-        <span class="slot-time">${p.Best || '-'}</span>
+        <span class="slot-time">${p.Best || ''}</span>
       </div>
       <div class="slot-solves">${chips}</div>
     </div>`;
   }
 
+  // Fill an unplayed match with the competitors who SHOULD be in it (seeds / earlier winners)
+  function seededMatch(match, a, b) {
+    if (match.state === "complete") return match;
+    if (match.state === "pending") {
+      const other = [a, b].find(p => p && nameKey(p) !== nameKey(match.a));
+      return other ? { state: "seeded", a: match.a, b: other } : match;
+    }
+    if (!a && !b) return match;
+    return { state: "seeded", a: a || null, b: b || null };
+  }
+
+  function matchWinnerLoser(match) {
+    if (match.state !== "complete") return { winner: null, loser: null };
+    const w = headToHead(match.a, match.b).winner;
+    return { winner: w, loser: w === match.a ? match.b : match.a };
+  }
+
   function stageCardHtml(match) {
     if (match.state === "complete") return matchCardHtml([match.a, match.b]);
+    if (match.state === "seeded") {
+      const slot = p => p ? singleSlotHtml(p) : pendingSlotHtml("TBD");
+      return `<div class="match-card">${slot(match.a)}${slot(match.b)}</div>`;
+    }
     if (match.state === "pending") {
       return `<div class="match-card">${singleSlotHtml(match.a)}${pendingSlotHtml("Awaiting opponent")}</div>`;
     }
     return `<div class="match-card">${pendingSlotHtml("TBD")}${pendingSlotHtml("TBD")}</div>`;
   }
 
-  function renderBracket(data, ageGroup) {
+  function renderBracket(data, ageGroup, seeds, bracketSize) {
+    seeds = seeds || [];
     const wrap = document.getElementById("bracket");
     const stageMap = groupByStage(data);
-    const bracketSize = BRACKET_SIZE[ageGroup] || 8;
+    bracketSize = bracketSize || 4;
     const useQuarters = bracketSize > 4;
 
     const hasAnyStageData = Object.keys(stageMap).length > 0;
-    if (!hasAnyStageData) {
+    if (!hasAnyStageData && seeds.length === 0) {
       wrap.innerHTML = `<div class="empty-msg">No knockout results entered yet for ${AGE_GROUP_LABELS[ageGroup]} (${bracketSize}-competitor bracket). Use the "Knockout Match" field on the entry form to submit each bracket match.</div>`;
       return;
     }
 
-    const qfMatches = useQuarters ? QF_STAGES.map(s => matchForStage(stageMap, s)) : [];
-    const sfMatches = SF_STAGES.map(s => matchForStage(stageMap, s));
-    const finalMatch = matchForStage(stageMap, FINAL_STAGE);
-    const bronzeMatch = matchForStage(stageMap, BRONZE_STAGE);
+    // 8-player seeding: QF1 #1 v #8, QF2 #4 v #5, QF3 #2 v #7, QF4 #3 v #6
+    // (so #1 and #2 can only meet in the Championship)
+    const qfPairs = [[seeds[0], seeds[7]], [seeds[3], seeds[4]], [seeds[1], seeds[6]], [seeds[2], seeds[5]]];
+    const qfMatches = useQuarters
+      ? QF_STAGES.map((s, i) => seededMatch(matchForStage(stageMap, s), qfPairs[i][0], qfPairs[i][1]))
+      : [];
+    const qfW = qfMatches.map(m => matchWinnerLoser(m).winner);
+    // 4-player seeding: SF1 #1 v #4, SF2 #2 v #3.  8-player: SF1 = QF1 v QF2 winners, SF2 = QF3 v QF4 winners
+    const sfPairs = useQuarters
+      ? [[qfW[0], qfW[1]], [qfW[2], qfW[3]]]
+      : [[seeds[0], seeds[3]], [seeds[1], seeds[2]]];
+    const sfMatches = SF_STAGES.map((s, i) => seededMatch(matchForStage(stageMap, s), sfPairs[i][0], sfPairs[i][1]));
+    const sf1 = matchWinnerLoser(sfMatches[0]);
+    const sf2 = matchWinnerLoser(sfMatches[1]);
+    const finalMatch = seededMatch(matchForStage(stageMap, FINAL_STAGE), sf1.winner, sf2.winner);
+    const bronzeMatch = seededMatch(matchForStage(stageMap, BRONZE_STAGE), sf1.loser, sf2.loser);
 
     const championHtml = finalMatch.state === "complete"
       ? `<div class="champion-card"><div class="champion-badge">🏆 ${headToHead(finalMatch.a, finalMatch.b).winner.Name}</div></div>`
@@ -651,6 +903,8 @@
 
     const bronzeNote = bronzeMatch.state === "complete"
       ? `3rd Place Match &nbsp;·&nbsp; ${bronzeMatch.a.Name} vs ${bronzeMatch.b.Name} &nbsp;·&nbsp; Winner: <strong>${headToHead(bronzeMatch.a, bronzeMatch.b).winner.Name}</strong>`
+      : bronzeMatch.state === "seeded"
+      ? `3rd Place Match &nbsp;·&nbsp; ${bronzeMatch.a ? bronzeMatch.a.Name : 'TBD'} vs ${bronzeMatch.b ? bronzeMatch.b.Name : 'TBD'}`
       : bronzeMatch.state === "pending"
       ? `3rd Place Match &nbsp;·&nbsp; ${bronzeMatch.a.Name} vs awaiting opponent`
       : `3rd Place Match &nbsp;·&nbsp; awaiting results`;
@@ -679,10 +933,25 @@
     `;
   }
 
-  // Initial load and 2-second auto-polling refresh
+  function fetchParticipants() {
+    if (!REGISTRATIONS_API_URL || REGISTRATIONS_API_URL.indexOf("PASTE_") === 0) return;
+    fetch(REGISTRATIONS_API_URL + "?action=participants")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.participants)) {
+          allParticipants = data.participants;
+          renderPage();
+        }
+      })
+      .catch(err => console.error("Error fetching participants:", err));
+  }
+
+  // Initial load, results every 2s, roster every 60s
   document.addEventListener("DOMContentLoaded", () => {
+    fetchParticipants();
     fetchResults();
     setInterval(fetchResults, 2000);
+    setInterval(fetchParticipants, PARTICIPANTS_POLL_MS);
   });
 </script>
 </body>
