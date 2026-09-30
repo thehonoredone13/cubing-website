@@ -92,6 +92,15 @@
   .btn-retry { background:var(--cube-amber); color:#fff; padding:8px 16px; border-radius:999px; }
   .btn-clear { background:#fff; color:var(--cube-red); border:1px solid rgba(230,64,42,0.45); padding:8px 16px; border-radius:999px; }
 
+  .result-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+    background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px 16px; margin-bottom:16px; }
+  .result-count { font-family:'Space Grotesk',sans-serif; font-size:18px; }
+  .result-count b { font-size:22px; }
+  .result-meta { display:flex; gap:16px; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-dim); }
+  .result-meta .paid { color:var(--cube-green); font-weight:600; }
+  .result-meta .pending { color:var(--cube-red); font-weight:600; }
+  .btn-reset { background:transparent; color:var(--text-dim); border:1px solid var(--line); padding:5px 12px; border-radius:999px; }
+
   .toggle-wrap { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; }
 </style>
 </head>
@@ -150,7 +159,7 @@
       <select id="eventFilter" class="filter-control"><option value="ALL">All Events</option></select>
     </div>
     <div class="filter-group">
-      <label for="gradeFilter">Filter by Grade</label>
+      <label for="gradeFilter">Filter by Grade / Age Group</label>
       <select id="gradeFilter" class="filter-control"><option value="ALL">All Grades</option></select>
     </div>
     <div class="filter-group">
@@ -188,6 +197,16 @@
     </label>
   </div>
 
+  <div class="result-bar" id="resultBar">
+    <div class="result-count" id="resultCount">Showing <b>0</b> people</div>
+    <div class="result-meta">
+      <span class="paid" id="resultPaid">0 paid</span>
+      <span class="pending" id="resultPending">0 pending</span>
+      <span id="resultMoney">₹0 collected of ₹0</span>
+      <button class="btn btn-reset" id="btnResetFilters" hidden>✕ Clear filters</button>
+    </div>
+  </div>
+
   <div class="card">
     <table>
       <thead>
@@ -209,6 +228,14 @@
    ===================================================================== */
 const REGISTRATION_API_URL = "https://script.google.com/macros/s/AKfycbxFw0E6BPQNYBC1gLRlHQ9Sn6AU2-_skhGpoi6bzo_uxFT9xLap94ilb8A5Ie-Hb_gc/exec";
 const CURRENCY_SYMBOL = "₹";
+
+/* Age groups for the Grade filter. Edit labels and ranges to match your categories.
+   Grades are read as numbers: "5", "Grade 5", "5th", "V", "Class 5" all become 5.
+   LKG / UKG / KG / Nursery / Pre-K count as grade 0. */
+const AGE_GROUPS = [
+  { label: "Grades 5-6",   min: 5,  max: 6  },
+  { label: "Grades 7-9",   min: 7,  max: 9  }
+];
 
 const PENDING_KEY = "payment_pending_writes_v2";
 const LEGACY_KEY  = "payment_statuses_cache";
@@ -717,12 +744,51 @@ function populateFilterDropdowns(data) {
 
   eventSelect.innerHTML = '<option value="ALL">All Events</option>'
     + Array.from(events).sort().map(e => '<option value="' + esc(e) + '">' + esc(e) + '</option>').join("");
+
+  // Age-group counts
+  const groupCounts = AGE_GROUPS.map(() => 0);
+  let ungrouped = 0;
+  data.forEach(item => {
+    const i = groupIndexForGrade(getRecordGrade(item));
+    if (i === -1) ungrouped++; else groupCounts[i]++;
+  });
+
   gradeSelect.innerHTML = '<option value="ALL">All Grades</option>'
+    + '<optgroup label="Age groups">'
+    + AGE_GROUPS.map((g, i) => '<option value="GROUP:' + i + '">' + esc(g.label) + ' (' + groupCounts[i] + ')</option>').join("")
+    + (ungrouped > 0 ? '<option value="GROUP:NONE">Not in any group (' + ungrouped + ')</option>' : '')
+    + '</optgroup>'
+    + '<optgroup label="Single grade">'
     + Array.from(grades).sort((a,b) => a.localeCompare(b, undefined, {numeric:true}))
-        .map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join("");
+        .map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join("")
+    + '</optgroup>';
 
   if (events.has(prevEvent)) eventSelect.value = prevEvent;
-  if (grades.has(prevGrade)) gradeSelect.value = prevGrade;
+  if (Array.from(gradeSelect.options).some(o => o.value === prevGrade)) gradeSelect.value = prevGrade;
+}
+
+/* ---------- grade -> number -> age group ---------- */
+const ROMAN = { i:1, ii:2, iii:3, iv:4, v:5, vi:6, vii:7, viii:8, ix:9, x:10, xi:11, xii:12 };
+function gradeNumber(g) {
+  if (!g || g === "—") return null;
+  const s = String(g).toLowerCase().trim();
+  if (/\b(lkg|ukg|kg|nursery|pre[\s-]?k|prep|kindergarten)\b/.test(s)) return 0;
+  const d = s.match(/\d+/);
+  if (d) return parseInt(d[0], 10);
+  const words = s.replace(/[^a-z\s]/g, " ").split(/\s+/);
+  for (const w of words) if (ROMAN[w] !== undefined) return ROMAN[w];
+  return null;
+}
+function groupIndexForGrade(g) {
+  const n = gradeNumber(g);
+  if (n === null) return -1;
+  return AGE_GROUPS.findIndex(grp => n >= grp.min && n <= grp.max);
+}
+function matchesGradeFilter(grade, filter) {
+  if (filter === "ALL") return true;
+  if (filter === "GROUP:NONE") return groupIndexForGrade(grade) === -1;
+  if (filter.indexOf("GROUP:") === 0) return groupIndexForGrade(grade) === parseInt(filter.slice(6), 10);
+  return grade.toLowerCase() === filter.toLowerCase();
 }
 
 function applyFilterAndSort() {
@@ -741,7 +807,7 @@ function applyFilterAndSort() {
 
     const eventTokens = splitEvents(getRecordEvents(row)).map(e => e.toLowerCase());
     const matchEvent = eventFilter === "ALL" || eventTokens.includes(eventFilter.toLowerCase());
-    const matchGrade = gradeFilter === "ALL" || grade.toLowerCase() === gradeFilter.toLowerCase();
+    const matchGrade = matchesGradeFilter(grade, gradeFilter);
 
     let matchStatus = true;
     if (statusFilter === "Pending") matchStatus = !isPaid;
@@ -765,7 +831,36 @@ function applyFilterAndSort() {
     return byName(a, b);
   });
 
+  const filtersActive = eventFilter !== "ALL" || gradeFilter !== "ALL" || statusFilter !== "ALL" || q !== "";
+  updateResultBar(filtered, filtersActive);
   renderTable(filtered, allowRevert);
+}
+
+function updateResultBar(filtered, filtersActive) {
+  let paid = 0, collected = 0, due = 0;
+  filtered.forEach(r => {
+    const amt = getNumericAmount(r);
+    due += amt;
+    if (isStatusPaid(r.computedStatus)) { paid++; collected += amt; }
+  });
+  const n = filtered.length, total = rawRegistrations.length;
+  const people = n === 1 ? " person" : " people";
+  document.getElementById("resultCount").innerHTML = filtersActive
+    ? "Showing <b>" + n + "</b>" + people + " <span style=\"color:var(--text-dim); font-size:14px;\">of " + total + "</span>"
+    : "Showing all <b>" + n + "</b>" + people;
+  document.getElementById("resultPaid").textContent = paid + " paid";
+  document.getElementById("resultPending").textContent = (n - paid) + " pending";
+  document.getElementById("resultMoney").textContent =
+    CURRENCY_SYMBOL + collected.toLocaleString() + " collected of " + CURRENCY_SYMBOL + due.toLocaleString();
+  document.getElementById("btnResetFilters").hidden = !filtersActive;
+}
+
+function resetFilters() {
+  document.getElementById("eventFilter").value = "ALL";
+  document.getElementById("gradeFilter").value = "ALL";
+  document.getElementById("statusFilter").value = "ALL";
+  document.getElementById("searchInput").value = "";
+  applyFilterAndSort();
 }
 
 /* =====================================================================
@@ -925,6 +1020,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnRefresh").addEventListener("click", () => loadRegistrations());
   document.getElementById("btnRetry").addEventListener("click", retryUnsynced);
   document.getElementById("btnClear").addEventListener("click", discardLocal);
+  document.getElementById("btnResetFilters").addEventListener("click", resetFilters);
 
   document.getElementById("regTableBody").addEventListener("click", e => {
     const btn = e.target.closest("button[data-id]");
