@@ -90,6 +90,7 @@
   .btn-done { background:var(--paper-dim); color:var(--text-dim); border:1px solid var(--line); }
   .btn-refresh { background:var(--ink); color:#fff; padding:8px 16px; border-radius:999px; }
   .btn-retry { background:var(--cube-amber); color:#fff; padding:8px 16px; border-radius:999px; }
+  .btn-clear { background:#fff; color:var(--cube-red); border:1px solid rgba(230,64,42,0.45); padding:8px 16px; border-radius:999px; }
 
   .toggle-wrap { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; }
 </style>
@@ -110,6 +111,7 @@
     </div>
     <div class="diag-body" id="diagBody" hidden>
       <div class="diag-row"><span class="diag-k">GET endpoint</span><span class="diag-v" id="dGet">—</span></div>
+      <div class="diag-row"><span class="diag-k">Response shape</span><span class="diag-v" id="dShape">—</span></div>
       <div class="diag-row"><span class="diag-k">Rows returned</span><span class="diag-v" id="dRows">—</span></div>
       <div class="diag-row"><span class="diag-k">Column names in sheet</span><span class="diag-v" id="dCols">—</span></div>
       <div class="diag-row"><span class="diag-k">Status column used</span><span class="diag-v" id="dStatusCol">—</span></div>
@@ -178,6 +180,7 @@
     <div class="actions-left">
       <button class="btn btn-refresh" id="btnRefresh">↻ Refresh Registrations</button>
       <button class="btn btn-retry" id="btnRetry" hidden>⟳ Retry unconfirmed writes</button>
+      <button class="btn btn-clear" id="btnClear" hidden>✕ Discard local changes, show sheet</button>
     </div>
     <label class="toggle-wrap">
       <input type="checkbox" id="allowRevert">
@@ -222,6 +225,9 @@ function lsSet(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); return true; }
   catch (e) { return false; }
 }
+function lsRemove(key) {
+  try { localStorage.removeItem(key); } catch (e) {}
+}
 function ssGet(key, fallback) {
   try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
   catch (e) { return fallback; }
@@ -229,6 +235,18 @@ function ssGet(key, fallback) {
 function ssSet(key, val) {
   try { sessionStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
 }
+
+/* Old builds copied a local status cache into the write queue, which then
+   overrode the sheet forever. Drop that cache and any entries it produced. */
+(function purgeLegacy() {
+  lsRemove(LEGACY_KEY);
+  const p = lsGet(PENDING_KEY, {});
+  let changed = false;
+  Object.keys(p).forEach(id => {
+    if (!p[id] || p[id].ts === 0 || p[id].lastError === "migrated from old cache") { delete p[id]; changed = true; }
+  });
+  if (changed) lsSet(PENDING_KEY, p);
+})();
 
 /* =====================================================================
    ROBUST COLUMN & FIELD RESOLUTION
@@ -245,9 +263,6 @@ function indexRow(row) {
   return row.__idx;
 }
 
-/**
- * Checks if key exists on object regardless of whether the value is empty or null.
- */
 function findColumnKey(row, candidates) {
   if (!row || typeof row !== "object") return null;
   const idx = indexRow(row);
@@ -258,9 +273,6 @@ function findColumnKey(row, candidates) {
   return null;
 }
 
-/**
- * Returns string value for first candidate matching key present in row.
- */
 function getFieldValue(row, candidates) {
   if (!row || typeof row !== "object") return "";
   const realKey = findColumnKey(row, candidates);
@@ -315,11 +327,59 @@ function isStatusPaid(s) {
 }
 
 /* =====================================================================
-   EVENT / FEE PARSING (FIXED REGEX)
+   RESPONSE PARSING (accepts any common Apps Script shape)
+   ===================================================================== */
+function extractRows(data) {
+  if (data && typeof data === "object" && !Array.isArray(data) && data.success === false) {
+    throw new Error("Backend returned an error: " + (data.error || data.message || JSON.stringify(data).slice(0, 160)));
+  }
+
+  let rows = null, shape = "";
+  if (Array.isArray(data)) { rows = data; shape = "top-level array"; }
+  else if (data && typeof data === "object") {
+    const candidates = ["data","registrations","rows","result","records","values","items"];
+    for (const k of candidates) {
+      if (Array.isArray(data[k])) { rows = data[k]; shape = "{" + k + ": [...]}"; break; }
+      if (data[k] && typeof data[k] === "object") {
+        for (const k2 of candidates) {
+          if (Array.isArray(data[k][k2])) { rows = data[k][k2]; shape = "{" + k + ": {" + k2 + ": [...]}}"; break; }
+        }
+        if (rows) break;
+      }
+    }
+  }
+  if (!rows) {
+    throw new Error("JSON received but no list of rows found. Top-level keys: "
+      + (data && typeof data === "object" ? Object.keys(data).join(", ") : typeof data));
+  }
+
+  // Raw getValues() output: first row is headers
+  if (rows.length && Array.isArray(rows[0])) {
+    const headers = rows[0].map(h => String(h).trim());
+    rows = rows.slice(1)
+      .filter(r => Array.isArray(r) && r.join("") !== "")
+      .map(r => { const o = {}; headers.forEach((h, i) => { if (h) o[h] = r[i]; }); return o; });
+    shape += " (2D array converted using header row)";
+  }
+
+  rows = rows.filter(r => r && typeof r === "object" && Object.keys(r).length > 0);
+  return { rows: rows, shape: shape };
+}
+
+function explainFetchError(err) {
+  if (err instanceof TypeError) {
+    return "Browser blocked the request (" + err.message + "). Usually the Apps Script deployment is not public: "
+      + "Deploy > Manage deployments > Edit > Who has access: Anyone, Execute as: Me, Version: New version.";
+  }
+  return err.message;
+}
+
+/* =====================================================================
+   EVENT / FEE PARSING
    ===================================================================== */
 function splitEvents(str) {
   if (!str || str === "—") return [];
-  // Excluded '/' to prevent splitting titles like '3x3x3 / 4x4x4 Speedcube'
+  // '/' excluded so titles like '3x3x3 / 4x4x4 Speedcube' stay intact
   return String(str).split(/[,;|\n]+/).map(e => e.trim()).filter(e => e.length > 0);
 }
 
@@ -370,18 +430,14 @@ function clearConfirmed(id) {
   const p = getPending();
   if (p[id]) { delete p[id]; setPending(p); }
 }
-
-(function migrateLegacy() {
-  const legacy = lsGet(LEGACY_KEY, null);
-  if (!legacy || typeof legacy !== "object") return;
-  const p = getPending();
-  let changed = false;
-  Object.keys(legacy).forEach(id => {
-    if (!p[id]) { p[id] = { status: legacy[id], ts: 0, tries: 0, lastError: "migrated from old cache" }; changed = true; }
-  });
-  if (changed) setPending(p);
-  try { localStorage.removeItem(LEGACY_KEY); } catch (e) {}
-})();
+function findPending(pendingWrites, id) {
+  if (pendingWrites[id]) return { key: id, entry: pendingWrites[id] };
+  const lc = String(id).toLowerCase();
+  for (const k of Object.keys(pendingWrites)) {
+    if (k.toLowerCase() === lc) return { key: k, entry: pendingWrites[k] };
+  }
+  return null;
+}
 
 /* =====================================================================
    MERGE SHEET + OUTBOX
@@ -393,21 +449,20 @@ function reconcile(data) {
   const pendingWrites = getPending();
   return data.map(row => {
     const id = getRecordId(row);
-    const sheetRaw = getSheetStatus(row);
-    const sheetPaid = isStatusPaid(sheetRaw);
+    const sheetPaid = isStatusPaid(getSheetStatus(row));
     const sheetNorm = sheetPaid ? "Paid" : "Pending";
 
-    const queued = pendingWrites[id];
+    const hit = id !== "—" ? findPending(pendingWrites, id) : null;
 
-    if (queued) {
-      if (queued.status === sheetNorm) {
-        clearConfirmed(id);
+    if (hit) {
+      if (hit.entry.status === sheetNorm) {
+        clearConfirmed(hit.key);
         row.computedStatus = sheetNorm;
         row.syncState = "confirmed";
       } else {
-        row.computedStatus = queued.status;
+        row.computedStatus = hit.entry.status;
         row.syncState = "unsynced";
-        row.syncNote = queued.lastError ? ("not saved: " + queued.lastError) : "not yet confirmed by sheet";
+        row.syncNote = hit.entry.lastError ? ("not saved: " + hit.entry.lastError) : "not yet confirmed by sheet";
       }
     } else {
       row.computedStatus = sheetNorm;
@@ -431,6 +486,10 @@ function toggleDiag() {
   b.hidden = !b.hidden;
   document.getElementById("diagCaret").textContent = b.hidden ? "show details ▾" : "hide details ▴";
 }
+function openDiag() {
+  document.getElementById("diagBody").hidden = false;
+  document.getElementById("diagCaret").textContent = "hide details ▴";
+}
 function setDiag(level, headline, fields) {
   const card = document.getElementById("diagCard");
   card.className = "diag " + level;
@@ -442,10 +501,11 @@ function setDiag(level, headline, fields) {
   const unsyncedCount = Object.keys(getPending()).length;
   document.getElementById("dUnsynced").textContent = unsyncedCount;
   document.getElementById("btnRetry").hidden = unsyncedCount === 0;
+  document.getElementById("btnClear").hidden = unsyncedCount === 0;
   if (unsyncedCount > 0 && level === "ok") {
     card.className = "diag warn";
     document.getElementById("diagHeadline").textContent =
-      unsyncedCount + " change(s) are showing here but are NOT saved in the sheet. Backend write is failing.";
+      unsyncedCount + " change(s) are showing here but are NOT saved in the sheet. Retry, or discard them to see the sheet as-is.";
   }
 }
 
@@ -469,16 +529,25 @@ function loadRegistrations(opts) {
       let data;
       try { data = JSON.parse(resp.text); }
       catch (e) {
-        throw new Error("Endpoint did not return JSON. First 160 chars: " + resp.text.slice(0, 160));
+        const t = resp.text;
+        if (/accounts\.google\.com|ServiceLogin|Sign in/i.test(t)) {
+          throw new Error("Got a Google sign-in page, not data. Set the deployment's 'Who has access' to Anyone and deploy a new version.");
+        }
+        if (/Script function not found: doGet/i.test(t)) {
+          throw new Error("Backend has no doGet function (or the latest code is not deployed as a new version).");
+        }
+        throw new Error("Endpoint did not return JSON. First 160 chars: " + t.slice(0, 160));
       }
 
-      let fetched = Array.isArray(data) ? data : (data.data || data.registrations || data.rows || []);
-      if (!Array.isArray(fetched)) throw new Error("JSON shape not recognised. Expected an array or {data:[...]}.");
+      const parsed = extractRows(data);
+      const fetched = parsed.rows;
 
       if (fetched.length > 0) {
-        const sampleRow = fetched.find(r => r && typeof r === "object" && Object.keys(r).length > 0) || fetched[0];
-        DETECTED_STATUS_COL = findColumnKey(sampleRow, STATUS_KEYS) || sniffStatusColumn(sampleRow);
-        DETECTED_ID_COL = findColumnKey(sampleRow, ID_KEYS);
+        DETECTED_STATUS_COL = findColumnKey(fetched[0], STATUS_KEYS) || sniffStatusColumn(fetched[0]);
+        DETECTED_ID_COL = findColumnKey(fetched[0], ID_KEYS);
+      } else {
+        DETECTED_STATUS_COL = null;
+        DETECTED_ID_COL = null;
       }
 
       rawRegistrations = reconcile(fetched);
@@ -502,10 +571,18 @@ function loadRegistrations(opts) {
       });
 
       const cols = fetched.length ? Object.keys(fetched[0]).join(", ") : "(none)";
-      let level = DETECTED_STATUS_COL ? "ok" : "warn";
-      let headline = DETECTED_STATUS_COL
-        ? "Connected. Reading payment status from the sheet."
-        : "Connected, but NO payment-status column was found. Every row will read as Pending.";
+      let level = "ok";
+      let headline = "Connected. Reading payment status from the sheet.";
+      if (fetched.length === 0) {
+        level = "warn";
+        headline = "Connected, but the backend returned 0 rows. Check the sheet name in doGet.";
+      } else if (!DETECTED_ID_COL) {
+        level = "fail";
+        headline = "Connected, but NO ID column was found. Rows cannot be marked paid.";
+      } else if (!DETECTED_STATUS_COL) {
+        level = "warn";
+        headline = "Connected, but NO payment-status column was found. Every row will read as Pending.";
+      }
       if (dupes.length > 0) {
         level = "fail";
         headline = dupes.length + " DUPLICATE ID(s) in the sheet. Those students cannot be marked paid correctly. Fix the sheet.";
@@ -513,37 +590,38 @@ function loadRegistrations(opts) {
 
       setDiag(level, headline, {
         dGet: "OK (" + fetched.length + " rows)",
+        dShape: parsed.shape,
         dRows: String(fetched.length),
         dCols: cols,
-        dStatusCol: DETECTED_STATUS_COL || "NOT FOUND — check that doGet returns the PaymentStatus column",
-        dIdCol: DETECTED_ID_COL || "NOT FOUND — rows cannot be matched to writes",
+        dStatusCol: DETECTED_STATUS_COL || "NOT FOUND. Check that doGet returns the Payment Status column",
+        dIdCol: DETECTED_ID_COL || "NOT FOUND. Rows cannot be matched to writes",
         dDupes: dupes.length === 0 ? "none" : dupes.join(", "),
         dFee: feeMismatch + " row(s) where the sheet Fee disagrees with event count, "
               + feeMissing + " row(s) with no Fee value (calculated fallback used)",
         dPost: lastPostNote
       });
-
-      if (rawRegistrations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-dim);">No registrations found.</td></tr>';
-        calculateCollections([]);
-        return;
-      }
+      if (level !== "ok") openDiag();
 
       populateFilterDropdowns(rawRegistrations);
       if (!opts.silent) restoreFilterSessionState();
       calculateCollections(rawRegistrations);
+
+      if (rawRegistrations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-dim);">No registrations found.</td></tr>';
+        return;
+      }
       applyFilterAndSort();
     })
     .catch(err => {
       console.error("Error loading registrations:", err);
+      const msg = explainFetchError(err);
       setDiag("fail", "Cannot read from the backend.", {
-        dGet: "FAILED — " + err.message,
-        dRows: "—", dCols: "—", dStatusCol: "—", dIdCol: "—", dPost: lastPostNote
+        dGet: "FAILED: " + msg,
+        dShape: "—", dRows: "—", dCols: "—", dStatusCol: "—", dIdCol: "—", dPost: lastPostNote
       });
-      document.getElementById("diagBody").hidden = false;
-      document.getElementById("diagCaret").textContent = "hide details ▴";
+      openDiag();
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--cube-red); padding:20px;">'
-        + esc(err.message) + '</td></tr>';
+        + esc(msg) + '</td></tr>';
     });
 }
 
@@ -587,7 +665,7 @@ function calculateCollections(data) {
 }
 
 /* =====================================================================
-   FILTERS (FIXED RESTORATION)
+   FILTERS
    ===================================================================== */
 function saveFilterSessionState() {
   ssSet(FILTER_KEY, {
@@ -732,7 +810,7 @@ function renderTable(records, allowRevert) {
 }
 
 /* =====================================================================
-   WRITE HANDLERS (FIXED CLEARING & ID MATCHING)
+   WRITE HANDLERS
    ===================================================================== */
 let verifyTimer = null;
 function scheduleVerify() {
@@ -761,11 +839,9 @@ function postStatus(id, targetStatus) {
     let parsed = null;
     try { parsed = JSON.parse(resp.text); } catch (e) {}
     if (parsed && (parsed.success === true || parsed.status === "success" || parsed.result === "success")) {
-      return { 
-        ok: true, 
-        note: "sheet accepted the update", 
-        registrations: Array.isArray(parsed.registrations) ? parsed.registrations : null 
-      };
+      let regs = null;
+      try { regs = extractRows(parsed).rows; } catch (e) { regs = null; }
+      return { ok: true, note: "sheet accepted the update", registrations: regs && regs.length ? regs : null };
     }
     if (parsed) return { ok: false, note: "backend error: " + (parsed.error || resp.text.slice(0, 120)) };
     return { ok: false, note: "backend returned non-JSON: " + resp.text.slice(0, 120) };
@@ -786,26 +862,26 @@ function togglePayment(id, targetStatus, btn) {
   postStatus(id, targetStatus)
     .then(r => {
       markWriteResult(id, r.ok, r.note);
-      if (r.ok) {
-        clearConfirmed(id); // Clean queue on write confirmation
-      }
-      lastPostNote = (r.ok ? "OK — " : "FAILED — ") + r.note;
+      lastPostNote = (r.ok ? "OK: " : "FAILED: ") + r.note;
       document.getElementById("dPost").textContent = lastPostNote;
-      
+
       if (r.ok && r.registrations) {
         rawRegistrations = reconcile(r.registrations);
         calculateCollections(rawRegistrations);
         applyFilterAndSort();
       } else {
+        // Keep the queue entry until a fresh GET confirms the sheet really changed
         scheduleVerify();
       }
     })
     .catch(err => {
-      markWriteResult(id, false, err.message);
-      lastPostNote = "FAILED — " + err.message;
+      const msg = explainFetchError(err);
+      markWriteResult(id, false, msg);
+      lastPostNote = "FAILED: " + msg;
       document.getElementById("dPost").textContent = lastPostNote;
       setDiag("fail", "The sheet write failed.", { dPost: lastPostNote });
-      document.getElementById("diagBody").hidden = false;
+      openDiag();
+      rawRegistrations = reconcile(rawRegistrations);
       applyFilterAndSort();
     });
 }
@@ -819,15 +895,19 @@ function retryUnsynced() {
 
   Promise.all(ids.map(id =>
     postStatus(id, p[id].status)
-      .then(r => {
-        markWriteResult(id, r.ok, r.note);
-        if (r.ok) clearConfirmed(id);
-      })
-      .catch(e => markWriteResult(id, false, e.message))
+      .then(r => markWriteResult(id, r.ok, r.note))
+      .catch(e => markWriteResult(id, false, explainFetchError(e)))
   )).then(() => {
     btn.disabled = false; btn.textContent = "⟳ Retry unconfirmed writes";
     loadRegistrations({ silent: true });
   });
+}
+
+function discardLocal() {
+  const n = Object.keys(getPending()).length;
+  if (!confirm("Discard " + n + " unsaved local change(s) and show exactly what the sheet has?")) return;
+  lsRemove(PENDING_KEY);
+  loadRegistrations();
 }
 
 /* =====================================================================
@@ -839,6 +919,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("searchInput").addEventListener("input", applyFilterAndSort);
   document.getElementById("btnRefresh").addEventListener("click", () => loadRegistrations());
   document.getElementById("btnRetry").addEventListener("click", retryUnsynced);
+  document.getElementById("btnClear").addEventListener("click", discardLocal);
 
   document.getElementById("regTableBody").addEventListener("click", e => {
     const btn = e.target.closest("button[data-id]");
