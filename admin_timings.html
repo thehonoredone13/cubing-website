@@ -160,13 +160,9 @@
     "4x4": ["Final"],
     "Megaminx": ["Final"]
   };
-  // 2x2 Grades 7–9 has only two rounds
-  const ROUNDS_OVERRIDE = {
-    "2x2": { "7-9": ["First Round", "Final"] }
-  };
+
   function getRounds(eventName, ageGroup) {
-    const o = ROUNDS_OVERRIDE[eventName] && ROUNDS_OVERRIDE[eventName][ageGroup];
-    return o || EVENT_ROUNDS[eventName] || ["Final"];
+    return EVENT_ROUNDS[eventName] || ["Final"];
   }
 
   // Knockout ONLY for the 3x3 / 2x2 Final, Grades 5–6 (4-competitor bracket).
