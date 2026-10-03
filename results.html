@@ -265,38 +265,34 @@
 
   // Default round structure per event
   const EVENT_ROUNDS = {
-    "3x3": ["First Round", "Second Round", "Final"],
+    "3x3": ["First Round", "Second Round", "Third Round", "Final"],
     "2x2": ["First Round", "Second Round", "Final"],
-    "Pyraminx": ["First Round", "Final"],
+    "Pyraminx": ["First Round", "Second Round", "Final"],
     "Megaminx": ["Final"],
     "4x4": ["Final"]
   };
 
-  // Age-group-specific overrides: 2x2 Grades 7-9 has only First Round -> Final
-  const ROUNDS_OVERRIDE = {
-    "2x2": { "7-9": ["First Round", "Final"] }
-  };
+  // Age-group-specific overrides if needed (removed override for 2x2 7-9)
+  const ROUNDS_OVERRIDE = {};
 
   // How many competitors advance OUT of each round (event -> age group -> round -> count)
   // Rounds not listed (all Finals, Megaminx, 4x4) get podium-only highlighting.
   const ADVANCEMENT = {
     "3x3": {
-      "5-6": { "First Round": 32, "Second Round": 4 },
-      "7-9": { "First Round": 32, "Second Round": 8 }
+      "5-6": { "First Round": 32, "Second Round": 16, "Third Round": 4 },
+      "7-9": { "First Round": 32, "Second Round": 16, "Third Round": 8 }
     },
     "2x2": {
       "5-6": { "First Round": 16, "Second Round": 4 },
-      "7-9": { "First Round": 8 }
+      "7-9": { "First Round": 16, "Second Round": 8 }
     },
     "Pyraminx": {
-      "5-6": { "First Round": 10 },
-      "7-9": { "First Round": 10 }
+      "5-6": { "First Round": 16, "Second Round": 8 },
+      "7-9": { "First Round": 16, "Second Round": 8 }
     }
   };
 
   // Knockout Finals (event -> age group -> bracket size). Every other round is a ranking.
-  //   3x3 Grades 5-6: 4-player bracket   3x3 Grades 7-9: 8-player bracket
-  //   2x2 Grades 5-6: 4-player bracket   (2x2 Grades 7-9 Final is ranked)
   const KNOCKOUT_BRACKETS = {
     "3x3": { "5-6": 4, "7-9": 8 },
     "2x2": { "5-6": 4 }
@@ -324,7 +320,6 @@
     "5-6": "Grades 5–6",
     "7-9": "Grades 7–9"
   };
-
 
   let allResultsData = [];
   let allParticipants = [];
@@ -507,14 +502,12 @@
     return [row.Solve1, row.Solve2, row.Solve3, row.Best, row.Average].some(v => !isBlank(v));
   }
 
-  // Best single: the sheet's Best, else the fastest entered solve
   function bestOf(row, eventName) {
     const b = parseTime(row.Best);
     if (b !== Infinity) return b;
     return Math.min(...solvesOf(row, eventName).map(parseTime));
   }
 
-  // Tiebreak: average for Ao3 events, the slower solve for 2-solve events
   function tiebreakOf(row, eventName) {
     if (isTwoSolve(eventName)) {
       const t = solvesOf(row, eventName).map(parseTime).sort((x, y) => x - y);
@@ -546,23 +539,18 @@
     return list.map(e => String(e).trim().toLowerCase()).filter(Boolean);
   }
 
-  // Who should appear in this round even before any times are entered
   function expectedEntrants(eventName, ageGroup, roundName) {
     const rounds = getRounds(eventName, ageGroup);
     const idx = rounds.indexOf(roundName);
     if (idx > 0) {
-      // Later rounds: everyone who qualified from the previous round
       return getRankedRound(eventName, ageGroup, rounds[idx - 1]).qualified;
     }
-    // First round: registered participants for this event + age group (if the API sends them)
     const ev = eventName.toLowerCase();
     return allParticipants.filter(p =>
       p && p.Name && inAgeGroup(p, ageGroup) && participantEvents(p).includes(ev)
     );
   }
 
-  // Full ranking for a round: result rows + blank rows for anyone not yet timed.
-  // Order: best single, then average. Identical best + average share a rank.
   function getRankedRound(eventName, ageGroup, roundName) {
     const results = deduplicateEntries(
       allResultsData.filter(r => r.Event === eventName && r.Round === roundName && inAgeGroup(r, ageGroup)),
@@ -640,7 +628,6 @@
     renderAdvanceNote(advanceCount, nextRound);
 
     if (isKnockoutView()) {
-      // No de-duplication here: a finalist legitimately appears in both a Semifinal and the Championship
       const knockoutPrefix = `${currentRound} — ${currentAgeGroup} — `;
       const koRows = allResultsData.filter(r => r.Event === currentEvent && r.Round && r.Round.indexOf(knockoutPrefix) === 0);
       statusContainer.innerHTML = liveBadgeHtml(koRows);
@@ -699,7 +686,6 @@
       else if (r.rank === 3) medalHtml = `<span class="medal bronze">3</span>`;
       const rankHtml = medalHtml || (r.rank !== null ? r.rank : "");
 
-      // Show Best from the sheet; if missing, show the fastest entered solve
       let bestDisplay = cell(row.Best);
       if (!bestDisplay && r.best !== Infinity) {
         bestDisplay = solvesOf(row, currentEvent).find(s => parseTime(s) === r.best) || "";
@@ -735,7 +721,6 @@
     }).join("");
   }
 
-  // Handles "12.34", "1:05.20", "DNF", "DNS", blanks
   function parseTime(str) {
     if (str === undefined || str === null) return Infinity;
     const s = String(str).trim().toUpperCase();
@@ -838,7 +823,6 @@
     </div>`;
   }
 
-  // Fill an unplayed match with the competitors who SHOULD be in it (seeds / earlier winners)
   function seededMatch(match, a, b) {
     if (match.state === "complete") return match;
     if (match.state === "pending") {
@@ -880,14 +864,12 @@
       return;
     }
 
-    // 8-player seeding: QF1 #1 v #8, QF2 #4 v #5, QF3 #2 v #7, QF4 #3 v #6
-    // (so #1 and #2 can only meet in the Championship)
     const qfPairs = [[seeds[0], seeds[7]], [seeds[3], seeds[4]], [seeds[1], seeds[6]], [seeds[2], seeds[5]]];
     const qfMatches = useQuarters
       ? QF_STAGES.map((s, i) => seededMatch(matchForStage(stageMap, s), qfPairs[i][0], qfPairs[i][1]))
       : [];
     const qfW = qfMatches.map(m => matchWinnerLoser(m).winner);
-    // 4-player seeding: SF1 #1 v #4, SF2 #2 v #3.  8-player: SF1 = QF1 v QF2 winners, SF2 = QF3 v QF4 winners
+
     const sfPairs = useQuarters
       ? [[qfW[0], qfW[1]], [qfW[2], qfW[3]]]
       : [[seeds[0], seeds[3]], [seeds[1], seeds[2]]];
@@ -946,7 +928,6 @@
       .catch(err => console.error("Error fetching participants:", err));
   }
 
-  // Initial load, results every 2s, roster every 60s
   document.addEventListener("DOMContentLoaded", () => {
     fetchParticipants();
     fetchResults();
